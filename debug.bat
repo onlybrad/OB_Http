@@ -1,0 +1,1 @@
+gcc -std=c99 -g src/buffer.c src/http.c main.c vendors\libcurl\build\debug\lib\libcurl-d.dll -Ivendors\libcurl\include -Wall -Wextra -pedantic -Wconversion -Wstrict-overflow=5 -Wshadow -Wunused-macros -Wbad-function-cast -Wcast-qual -Wcast-align -Wwrite-strings -Wdangling-else -Wlogical-op -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Winline -o debug.exe

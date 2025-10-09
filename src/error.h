@@ -1,0 +1,11 @@
+#ifndef OB_HTTP_ERROR_H
+#define OB_HTTP_ERROR_H
+
+enum OB_HttpError {
+    OB_HTTP_ERROR_NONE,
+    OB_HTTP_ERROR_CURL,
+    OB_HTTP_ERROR_MISSING_URL,
+    OB_HTTP_ERROR_MALLOC,
+};
+
+#endif
