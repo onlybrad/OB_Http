@@ -10,4 +10,6 @@
 #define OB_MAX(A,B) ((A) > (B) ? (A) : (B))
 #define OB_MIN(A,B) ((A) < (B) ? (A) : (B))
 
+void OB_Util_strtolower(char *);
+
 #endif

@@ -2,13 +2,14 @@
 #include "http.h"
 #include "util.h"
 
-#define OB_HEADERS_BUFFER_SIZE 1024      
+#define OB_HEADERS_BUFFER_SIZE 1024 
+#define OB_MAX_HEADER_SIZE     (1 << 13)
 #define OB_MAX_REDIRECTIONS    20
 
 //macro used to call the curl_easy_setopt function and return OB_HTTP_ERROR_CURL if the function call fails
 #define OB_CURL_SETOPT(CURL, CURLOPTION, VALUE)\
     do {\
-        if((curl_code = curl_easy_setopt((CURL), (CURLOPTION), (VALUE))) != CURLE_OK) {\
+        if(curl_easy_setopt((CURL), (CURLOPTION), (VALUE)) != CURLE_OK) {\
             return OB_HTTP_ERROR_CURL;\
         }\
     } while(0)
@@ -16,7 +17,7 @@
 //macro used to call the curl_easy_getinfo function and return OB_HTTP_ERROR_CURL if the function call fails
 #define OB_CURL_GETINFO(CURL, CURLINFO, VALUE)\
     do {\
-        if((curl_code = curl_easy_getinfo((CURL), (CURLINFO), (VALUE))) != CURLE_OK) {\
+        if(curl_easy_getinfo((CURL), (CURLINFO), (VALUE)) != CURLE_OK) {\
             return OB_HTTP_ERROR_CURL;\
         }\
     } while(0)
@@ -24,13 +25,13 @@
 //macro used to call the curl_easy_perform function and return OB_HTTP_ERROR_CURL if the function call fails
 #define OB_CURL_PERFORM(CURL)\
     do {\
-        if((curl_code = curl_easy_perform((CURL))) != CURLE_OK) {\
+        if(curl_easy_perform((CURL)) != CURLE_OK) {\
             return OB_HTTP_ERROR_CURL;\
         }\
     } while(0)
 
 
-static size_t OB_Http_write_callback(char *data, size_t size, size_t count, void *user_data) {
+static size_t OB_Http_Client_write_callback(char *data, size_t size, size_t count, void *user_data) {
     assert(size == 1);
     assert(data != NULL);
     assert(user_data != NULL);
@@ -44,13 +45,73 @@ static size_t OB_Http_write_callback(char *data, size_t size, size_t count, void
     return count;
 }
 
+static size_t OB_Http_Client_noop_callback(char *data, size_t size, size_t count, void *user_data) {
+    assert(size == 1);
+    assert(data != NULL);
 
-bool OB_HttpClient_init(struct OB_HttpClient *client) {
+    (void)data;
+    (void)user_data;
+    (void)size;
+
+    return count;
+}
+
+static enum OB_Http_Error OB_Http_Client_prepare_request_headers(struct OB_Http_Client *client, struct OB_Http_Request *request) {
+    assert(client != NULL);
+    assert(request != NULL);
+
+    const  size_t        str_header_size = OB_MAX_HEADER_SIZE;
+    enum   OB_Http_Error error           = OB_HTTP_ERROR_NONE;
+
+    char *str_header;
+    if((str_header = (char*)OB_MALLOC(str_header_size)) == NULL) {
+        return OB_HTTP_ERROR_MALLOC;
+    }
+
+    for(size_t i = 0; i < request->headers.size; i++) {
+        struct OB_Http_Header header = OB_Http_Headers_get(&request->headers, i);
+
+        //using CURLOPT_ACCEPT_ENCODING instead of CURLOPT_HTTPHEADER will ensure that decoding is done automatically by curl
+        if(strcmp(header.name, "accept-encoding") == 0) {
+            if((curl_easy_setopt(client->curl, CURLOPT_ACCEPT_ENCODING, header.value)) != CURLE_OK) {
+                error = OB_HTTP_ERROR_CURL;
+                break;
+            }
+            continue;
+        }
+
+        if((size_t)snprintf(str_header, str_header_size, "%s: %s", header.name, header.value) >= str_header_size) {
+            error = OB_HTTP_ERROR_HEADER_SIZE;
+            break;
+        }
+
+        if((request->curl_headers = curl_slist_append(request->curl_headers, str_header)) == NULL) {
+            error = OB_HTTP_ERROR_MALLOC;
+            break;
+        }
+    }
+
+    if((curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, request->curl_headers)) != CURLE_OK) {
+        error = OB_HTTP_ERROR_CURL;
+    }
+
+    if(error != CURLE_OK) {
+        curl_slist_free_all(request->curl_headers);
+        request->curl_headers = NULL;
+    }
+
+    OB_FREE(str_header);
+    return error;
+}
+
+bool OB_Http_Client_init(struct OB_Http_Client *client) {
     assert(client != NULL);
 
     memset(client->error, 0, sizeof(client->error));
 
     client->max_redirections = OB_MAX_REDIRECTIONS;
+    client->get_headers      = false;
+    client->get_body         = true;
 
     if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
         return false;
@@ -59,7 +120,7 @@ bool OB_HttpClient_init(struct OB_HttpClient *client) {
     return (client->curl = curl_easy_init()) != NULL;
 }
 
-void OB_HttpClient_free(struct OB_HttpClient *client) {
+void OB_Http_Client_free(struct OB_Http_Client *client) {
     assert(client != NULL);
 
     if(client->curl == NULL) {
@@ -70,7 +131,7 @@ void OB_HttpClient_free(struct OB_HttpClient *client) {
     curl_global_cleanup();
 }
 
-enum OB_HttpError OB_HttpClient_fetch(struct OB_HttpClient *client, struct OB_HttpRequest *request, struct OB_HttpResponse *response) {
+enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *client, struct OB_Http_Request *request, struct OB_Http_Response *response) {
     assert(client != NULL);
     assert(request != NULL);
     assert(response != NULL);
@@ -84,7 +145,9 @@ enum OB_HttpError OB_HttpClient_fetch(struct OB_HttpClient *client, struct OB_Ht
         /* OB_HTTP_METHOD_DELETE */ "DELETE"
     };
 
-    CURLcode curl_code;
+#ifndef NDEBUG
+    OB_CURL_SETOPT(client->curl, CURLOPT_VERBOSE, 1L);
+#endif
 
     OB_CURL_SETOPT(client->curl, CURLOPT_ERRORBUFFER, client->error);
     
@@ -112,18 +175,31 @@ enum OB_HttpError OB_HttpClient_fetch(struct OB_HttpClient *client, struct OB_Ht
         break;
     }
 
-    if(request->method != OB_HTTP_METHOD_HEAD) {
+    if(client->get_body && request->method != OB_HTTP_METHOD_HEAD) {
         OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, &response->body);
-        OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_Http_write_callback);
+        OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_Http_Client_write_callback);
         
         if(!OB_Buffer_reserve(&response->body, CURL_MAX_WRITE_SIZE)) {
             return OB_HTTP_ERROR_MALLOC;
         }
+    } else {
+        OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, NULL);
+        OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_Http_Client_noop_callback);
     }
 
     if(request->follow_redirections) {
         OB_CURL_SETOPT(client->curl, CURLOPT_FOLLOWLOCATION, CURLFOLLOW_ALL);
         OB_CURL_SETOPT(client->curl, CURLOPT_MAXREDIRS, (long)client->max_redirections);
+    } else {
+        OB_CURL_SETOPT(client->curl, CURLOPT_FOLLOWLOCATION, 0L);
+        OB_CURL_SETOPT(client->curl, CURLOPT_MAXREDIRS, 0L);
+    }
+
+    if(request->headers.size > 0) {
+        enum OB_Http_Error error;
+        if((error = OB_Http_Client_prepare_request_headers(client, request)) != OB_HTTP_ERROR_NONE) {
+            return error;
+        }
     }
 
     OB_CURL_PERFORM(client->curl);
@@ -132,68 +208,74 @@ enum OB_HttpError OB_HttpClient_fetch(struct OB_HttpClient *client, struct OB_Ht
     OB_CURL_GETINFO(client->curl, CURLINFO_RESPONSE_CODE, &status_code);
     response->status_code = (unsigned)status_code;
 
-    struct curl_header *prev = NULL;
-    struct curl_header *curr;
-    while((curr = curl_easy_nextheader(client->curl, CURLH_HEADER, -1, prev)) != NULL) {
-        response->header_count++;
-        prev = curr;
+    if(client->get_headers && !OB_Http_Client_get_headers(client, response)) {
+        return OB_HTTP_ERROR_MALLOC;   
     }
-    prev = NULL;
     
-    const size_t size = response->header_count * sizeof(*response->headers);
-    if((response->headers = (struct OB_HttpHeader*)OB_MALLOC(size)) == NULL) {
-        response->header_count = 0;
-        return OB_HTTP_ERROR_MALLOC;
-    }
-
-    if(!OB_Buffer_reserve(&response->headers_buffer, OB_HEADERS_BUFFER_SIZE)) {
-        return OB_HTTP_ERROR_MALLOC;
-    }
-
-    struct OB_HttpHeader *header = response->headers;
-    while((curr = curl_easy_nextheader(client->curl, CURLH_HEADER, -1, prev)) != NULL) {
-        unsigned char *const name      = (unsigned char*)curr->name;
-        unsigned char *const value     = (unsigned char*)curr->value;
-        struct OB_Buffer *const buffer = &response->headers_buffer;
-
-        if((header->name = (char*)OB_Buffer_append(buffer, name, (size_t)-1)) == NULL) {
-            return OB_HTTP_ERROR_MALLOC;
-        }
-        if((header->value = (char*)OB_Buffer_append(buffer, value, (size_t)-1)) == NULL) {
-            return OB_HTTP_ERROR_MALLOC;
-        }
-        header++;
-        prev = curr;
-    }
-
     return OB_HTTP_ERROR_NONE;
 }
 
-void OB_HttpRequest_init(struct OB_HttpRequest *request) {
+bool OB_Http_Client_get_headers(struct OB_Http_Client *client, struct OB_Http_Response *response) {
+    assert(client != NULL);
+    assert(response != NULL);
+
+    struct curl_header *prev = NULL;
+    struct curl_header *curr;
+    size_t size = 0;
+    while((curr = curl_easy_nextheader(client->curl, CURLH_HEADER, -1, prev)) != NULL) {
+        size++;
+        prev = curr;
+    }
+    prev = NULL;
+
+    if(!OB_Http_Headers_reserve(&response->headers, size)) {
+        return false;
+    }
+
+    if(!OB_Buffer_reserve(&response->headers.string_buffer, OB_HEADERS_BUFFER_SIZE)) {
+        return false;
+    }
+
+    while((curr = curl_easy_nextheader(client->curl, CURLH_HEADER, -1, prev)) != NULL) {
+        if(!OB_Http_Headers_append(&response->headers, curr->name, curr->value)) {
+            return false;
+        }
+        prev = curr;
+    }
+
+    return true;
+}
+
+void OB_Http_Request_init(struct OB_Http_Request *request) {
     assert(request != NULL);
     
     request->url                 = NULL;
     request->method              = OB_HTTP_METHOD_GET;
     request->follow_redirections = true;
+    request->curl_headers        = NULL;
+    OB_Http_Headers_init(&request->headers);
 }
 
-void OB_HttpResponse_init(struct OB_HttpResponse *response) {
+void OB_Http_Request_free(struct OB_Http_Request *request) {
+    assert(request != NULL);
+
+    curl_slist_free_all(request->curl_headers);
+    OB_Http_Headers_free(&request->headers);
+    OB_Http_Request_init(request);
+}
+
+void OB_Http_Response_init(struct OB_Http_Response *response) {
     assert(response != NULL);
 
     OB_Buffer_init(&response->body, 0);
-    OB_Buffer_init(&response->headers_buffer, 0);
-    response->headers       = NULL;
-    response->header_count  = 0;
-    response->status_code   = 0;
+    OB_Http_Headers_init(&response->headers);
+    response->status_code  = 0u;
 }
 
-void OB_HttpResponse_free(struct OB_HttpResponse *response) {
+void OB_Http_Response_free(struct OB_Http_Response *response) {
     assert(response != NULL);
 
     OB_Buffer_free(&response->body);
-    OB_Buffer_free(&response->headers_buffer);
-    OB_FREE(response->headers);
-    response->headers       = NULL;
-    response->header_count  = 0;
-    response->status_code   = 0;
+    OB_Http_Headers_free(&response->headers);
+    OB_Http_Response_init(response);
 }

@@ -1,11 +1,12 @@
 #ifndef OB_HTTP_ERROR_H
 #define OB_HTTP_ERROR_H
 
-enum OB_HttpError {
+enum OB_Http_Error {
     OB_HTTP_ERROR_NONE,
     OB_HTTP_ERROR_CURL,
     OB_HTTP_ERROR_MISSING_URL,
     OB_HTTP_ERROR_MALLOC,
+    OB_HTTP_ERROR_HEADER_SIZE
 };
 
 #endif

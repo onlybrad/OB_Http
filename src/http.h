@@ -5,8 +5,9 @@
 #include <stdbool.h>
 #include "error.h"
 #include "buffer.h"
+#include "header.h"
 
-enum OB_HttpMethod {
+enum OB_Http_Method {
     OB_HTTP_METHOD_GET,
     OB_HTTP_METHOD_POST,
     OB_HTTP_METHOD_HEAD,
@@ -15,38 +16,53 @@ enum OB_HttpMethod {
     OB_HTTP_METHOD_DELETE
 };
 
-struct OB_HttpHeader {
-    char *name;
-    char *value;
+enum OB_Http_BodyType {
+    OB_HTTP_BODY_TYPE_NONE,
+    OB_HTTP_BODY_TYPE_BYTES,
+    OB_HTTP_BODY_TYPE_BUFFER,
+    OB_HTTP_BODY_TYPE_FILE,
+    OB_HTTP_BODY_TYPE_URL_ENCODED,
+    OB_HTTP_BODY_TYPE_FORM_DATA,
+    OB_HTTP_BODY_TYPE_JSON,
+    OB_HTTP_BODY_TYPE_XML,
 };
 
-struct OB_HttpClient {
+struct OB_Http_Body {
+    void                 *value;
+    enum OB_Http_BodyType type;
+};
+
+struct OB_Http_Client {
     CURL    *curl;
     unsigned max_redirections;
+    bool     get_headers;
+    bool     get_body;
     char     error[CURL_ERROR_SIZE];
 };
 
-struct OB_HttpRequest {
-    const char        *url;
-    enum OB_HttpMethod method;
-    bool               follow_redirections;
+struct OB_Http_Request {
+    const char            *url;
+    enum OB_Http_Method    method;
+    struct OB_Http_Headers headers;
+    bool                   follow_redirections;
+    struct curl_slist     *curl_headers;
 };
 
-struct OB_HttpResponse {
-    struct OB_Buffer body;
-    struct OB_Buffer headers_buffer;
-    struct OB_HttpHeader *headers;
-    size_t header_count;
-    unsigned status_code;
+struct OB_Http_Response {
+    struct OB_Buffer       body;
+    struct OB_Http_Headers headers;
+    unsigned               status_code;
 };
 
-bool              OB_HttpClient_init(struct OB_HttpClient*);
-void              OB_HttpClient_free(struct OB_HttpClient*);
-enum OB_HttpError OB_HttpClient_fetch(struct OB_HttpClient*, struct OB_HttpRequest*, struct OB_HttpResponse*);
+bool               OB_Http_Client_init(struct OB_Http_Client*);
+void               OB_Http_Client_free(struct OB_Http_Client*);
+enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client*, struct OB_Http_Request*, struct OB_Http_Response*);
+bool               OB_Http_Client_get_headers(struct OB_Http_Client*, struct OB_Http_Response*);
 
-void OB_HttpRequest_init(struct OB_HttpRequest*);
+void OB_Http_Request_init(struct OB_Http_Request*);
+void OB_Http_Request_free(struct OB_Http_Request*);
 
-void OB_HttpResponse_init(struct OB_HttpResponse*);
-void OB_HttpResponse_free(struct OB_HttpResponse*);
+void OB_Http_Response_init(struct OB_Http_Response*);
+void OB_Http_Response_free(struct OB_Http_Response*);
 
 #endif
