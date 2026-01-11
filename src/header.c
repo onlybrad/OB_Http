@@ -45,6 +45,8 @@ bool OB_Http_Headers_reserve(struct OB_Http_Headers *headers, size_t capacity) {
 
 bool OB_Http_Headers_append(struct OB_Http_Headers *headers, const char *name, const char *value) {
     assert(headers != NULL);
+    assert(name != NULL);
+    assert(value != NULL);
 
     if(headers->size == headers->capacity) {
         const size_t capacity = headers->capacity == 0 
@@ -58,21 +60,21 @@ bool OB_Http_Headers_append(struct OB_Http_Headers *headers, const char *name, c
 
     struct OB_Http_IndexHeader *const header = headers->data + headers->size;
 
-    const unsigned char *const u_name = (const unsigned char*)name;
+    const unsigned char *bytes = (const unsigned char*)name;
     unsigned char *copied_name;
-    if((copied_name = OB_Buffer_append(&headers->string_buffer, u_name, (size_t)-1)) == NULL) {
+    if((copied_name = OB_Buffer_append(&headers->string_buffer, bytes, (size_t)-1)) == NULL) {
         return false;
     }
     OB_Util_strtolower((char*)copied_name);
+    header->name_index  = (size_t)(copied_name - headers->string_buffer.data);
 
-    const unsigned char *const u_value = (const unsigned char*)value;
+    bytes = (const unsigned char*)value;
     unsigned char *copied_value;
-    if((copied_value = OB_Buffer_append(&headers->string_buffer, u_value, (size_t)-1)) == NULL) {
+    if((copied_value = OB_Buffer_append(&headers->string_buffer, bytes, (size_t)-1)) == NULL) {
         return false;
     }
-
-    header->name_index  = (size_t)(copied_name - headers->string_buffer.data);
     header->value_index = (size_t)(copied_value - headers->string_buffer.data);
+
     headers->size++;
 
     return true;
@@ -101,7 +103,6 @@ bool OB_Http_Headers_set(struct OB_Http_Headers *headers, const char *name, cons
     const size_t new_size = strlen(value);
     if(strlen(old_value) >= new_size) {
         strcpy(old_value, value);
-        OB_Util_strtolower(old_value);
         return true;
     } 
     
@@ -114,59 +115,6 @@ bool OB_Http_Headers_set(struct OB_Http_Headers *headers, const char *name, cons
     header->value_index = (size_t)(copied_value - headers->string_buffer.data);
 
     return true;
-}
-
-static bool OB_Http_Headers_set_type(struct OB_Http_Headers *headers, enum OB_Http_ContentType content_type, const char *name, const char *custom) {
-    assert(headers != NULL);
-    assert(name != NULL);
-
-    static const char *const MIME_TYPES[] = {           
-        // OB_HTTP_CONTENT_TYPE_TEXT
-        "text/plain",
-        // OB_HTTP_CONTENT_TYPE_HTML
-        "text/html; charset=UTF-8",
-        // OB_HTTP_CONTENT_TYPE_JSON
-        "application/json",
-        // OB_HTTP_CONTENT_TYPE_XML
-        "application/xml",
-        // OB_HTTP_CONTENT_TYPE_URLENCODED
-        "application/x-www-form-urlencoded",
-        // OB_HTTP_CONTENT_TYPE_FORMDATA
-        "multipart/form-data",
-        // OB_HTTP_CONTENT_TYPE_OCTET_STREAM
-        "application/octet-stream",
-        // OB_HTTP_CONTENT_TYPE_CUSTOM
-        NULL
-    };
-
-    const char *value;
-    const char *mime_type;
-    if((mime_type = MIME_TYPES[(int)content_type]) != NULL) {
-        value = mime_type;
-    } else {
-        value = custom;
-    }
-
-    return OB_Http_Headers_set(headers, name, value);
-}
-
-bool OB_Http_Headers_set_accept(struct OB_Http_Headers *headers, enum OB_Http_ContentType content_type, const char *custom) {
-    assert(headers != NULL);
-
-    return OB_Http_Headers_set_type(headers, content_type, "accept", custom);
-}
-
-bool OB_Http_Headers_set_content_type(struct OB_Http_Headers *headers, enum OB_Http_ContentType content_type, const char *custom) {
-    assert(headers != NULL);
-
-    return OB_Http_Headers_set_type(headers, content_type, "content-type", custom);
-}
-
-bool OB_Http_Headers_set_authorization(struct OB_Http_Headers *headers, const char *value) {
-    assert(headers != NULL);
-    assert(value != NULL);
-
-    return OB_Http_Headers_set(headers, "authorization", value);
 }
 
 struct OB_Http_Header OB_Http_Headers_get(struct OB_Http_Headers *headers, size_t index) {
@@ -182,4 +130,18 @@ struct OB_Http_Header OB_Http_Headers_get(struct OB_Http_Headers *headers, size_
     };
 
     return header;
+}
+
+const char *OB_Http_Headers_get_value(struct OB_Http_Headers *headers, const char *name) {
+    assert(headers != NULL);
+    assert(name != NULL);
+
+    for(size_t i = 0; i < headers->size; i++) {
+        const struct OB_Http_Header header = OB_Http_Headers_get(headers, i);
+        if(strcmp(name, header.name) == 0) {
+            return header.value;
+        }
+    }
+
+    return NULL;
 }

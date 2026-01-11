@@ -60,13 +60,7 @@ static enum OB_Http_Error OB_Http_Client_prepare_request_headers(struct OB_Http_
     assert(client != NULL);
     assert(request != NULL);
 
-    const  size_t        str_header_size = OB_MAX_HEADER_SIZE;
-    enum   OB_Http_Error error           = OB_HTTP_ERROR_NONE;
-
-    char *str_header;
-    if((str_header = (char*)OB_MALLOC(str_header_size)) == NULL) {
-        return OB_HTTP_ERROR_MALLOC;
-    }
+    enum OB_Http_Error error = OB_HTTP_ERROR_NONE;
 
     for(size_t i = 0; i < request->headers.size; i++) {
         struct OB_Http_Header header = OB_Http_Headers_get(&request->headers, i);
@@ -80,7 +74,8 @@ static enum OB_Http_Error OB_Http_Client_prepare_request_headers(struct OB_Http_
             continue;
         }
 
-        if((size_t)snprintf(str_header, str_header_size, "%s: %s", header.name, header.value) >= str_header_size) {
+        char str_header[OB_MAX_HEADER_SIZE];
+        if((size_t)snprintf(str_header, sizeof(str_header), "%s: %s", header.name, header.value) >= sizeof(str_header)) {
             error = OB_HTTP_ERROR_HEADER_SIZE;
             break;
         }
@@ -95,14 +90,77 @@ static enum OB_Http_Error OB_Http_Client_prepare_request_headers(struct OB_Http_
         error = OB_HTTP_ERROR_CURL;
     }
 
-    if(error != CURLE_OK) {
+    if(error != OB_HTTP_ERROR_NONE) {
         curl_slist_free_all(request->curl_headers);
         request->curl_headers = NULL;
     }
 
-    OB_FREE(str_header);
     return error;
 }
+
+static enum OB_Http_Error OB_Http_Client_decode_body(struct OB_Http_Client *client, struct OB_Http_Response *response) {
+    assert(client != NULL);
+    assert(response != NULL);
+
+    struct curl_header *content_type;
+    if(curl_easy_header(client->curl, "content-type", 0, CURLH_HEADER, -1, &content_type) != CURLHE_OK) {
+        return OB_HTTP_ERROR_CURL;
+    }
+
+    static const char text_plain[] = "text/plain";
+    if(strncmp(content_type->value, text_plain, sizeof(text_plain) - 1) == 0) {
+        response->body.type = OB_HTTP_BODY_TYPE_BUFFER;
+        return OB_HTTP_ERROR_NONE;
+    }
+
+    static const char application_json[] = "application/json";
+    if(strncmp(content_type->value, application_json, sizeof(application_json) - 1) == 0) {
+        const char *const json_string = (const char*)response->body.u.buffer.data;
+        const unsigned    size        = (unsigned)response->body.u.buffer.size;
+
+        CJSON_Parser_parse_init(&response->body.u.json_parser);
+        if(!CJSON_parse(&response->body.u.json_parser, json_string, size)) {
+            return OB_HTTP_ERROR_JSON_PARSING;
+        }
+
+        response->body.type = OB_HTTP_BODY_TYPE_JSON;
+        return OB_HTTP_ERROR_NONE;
+    }
+
+    static const char text_html[] = "text/html";
+    if(strncmp(content_type->value, text_html, sizeof(text_html) - 1) == 0) {
+        response->body.type = OB_HTTP_BODY_TYPE_HTML;
+        return OB_HTTP_ERROR_NONE;
+    }
+
+    static const char application_xml[] = "application/xml";
+    if(strncmp(content_type->value, application_xml, sizeof(application_xml) - 1) == 0) {
+        response->body.type = OB_HTTP_BODY_TYPE_XML;
+        return OB_HTTP_ERROR_NONE;
+    }
+
+    static const char urlencoded[] = "application/x-www-form-urlencoded";
+    if(strncmp(content_type->value, urlencoded, sizeof(urlencoded) - 1) == 0) {
+        response->body.type = OB_HTTP_BODY_TYPE_URL_ENCODED;
+        return OB_HTTP_ERROR_NONE;
+    }
+
+    static const char multipart_form_data[] = "multipart/form-data";
+    if(strncmp(content_type->value, multipart_form_data, sizeof(multipart_form_data) - 1) == 0) {
+        response->body.type = OB_HTTP_BODY_TYPE_FORM_DATA;
+        return OB_HTTP_ERROR_NONE;
+    }
+    
+    static const char octect_stream[] = "application/octet-stream";
+    if(strncmp(content_type->value, octect_stream, sizeof(octect_stream) - 1) == 0) {
+        response->body.type = OB_HTTP_BODY_TYPE_BUFFER;
+        return OB_HTTP_ERROR_NONE;
+    }
+
+    response->body.type = OB_HTTP_BODY_TYPE_BUFFER;
+    return OB_HTTP_ERROR_NONE;
+}
+
 
 bool OB_Http_Client_init(struct OB_Http_Client *client) {
     assert(client != NULL);
@@ -136,7 +194,9 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *client, struct OB
     assert(request != NULL);
     assert(response != NULL);
 
-    static const char *const OB_CUSTOM_HTTP_METHODS[] = {
+    enum OB_Http_Error error;
+
+    static const char *const OB_HTTP_METHODS[] = {
         /* OB_HTTP_METHOD_GET    */ NULL,
         /* OB_HTTP_METHOD_POST   */ NULL,
         /* OB_HTTP_METHOD_HEAD   */ NULL,
@@ -144,10 +204,6 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *client, struct OB
         /* OB_HTTP_METHOD_PATCH  */ "PATCH",
         /* OB_HTTP_METHOD_DELETE */ "DELETE"
     };
-
-#ifndef NDEBUG
-    OB_CURL_SETOPT(client->curl, CURLOPT_VERBOSE, 1L);
-#endif
 
     OB_CURL_SETOPT(client->curl, CURLOPT_ERRORBUFFER, client->error);
     
@@ -171,15 +227,16 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *client, struct OB
         break;
 
     default:
-        OB_CURL_SETOPT(client->curl, CURLOPT_CUSTOMREQUEST, OB_CUSTOM_HTTP_METHODS[(int)request->method]);
+        OB_CURL_SETOPT(client->curl, CURLOPT_CUSTOMREQUEST, OB_HTTP_METHODS[(int)request->method]);
         break;
     }
 
     if(client->get_body && request->method != OB_HTTP_METHOD_HEAD) {
-        OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, &response->body);
+        OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, &response->body.u.buffer);
         OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_Http_Client_write_callback);
         
-        if(!OB_Buffer_reserve(&response->body, CURL_MAX_WRITE_SIZE)) {
+        OB_Http_Body_use_buffer(&response->body);
+        if(!OB_Buffer_reserve(&response->body.u.buffer, CURL_MAX_WRITE_SIZE)) {
             return OB_HTTP_ERROR_MALLOC;
         }
     } else {
@@ -196,7 +253,6 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *client, struct OB
     }
 
     if(request->headers.size > 0) {
-        enum OB_Http_Error error;
         if((error = OB_Http_Client_prepare_request_headers(client, request)) != OB_HTTP_ERROR_NONE) {
             return error;
         }
@@ -210,6 +266,10 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *client, struct OB
 
     if(client->get_headers && !OB_Http_Client_get_headers(client, response)) {
         return OB_HTTP_ERROR_MALLOC;   
+    }
+
+    if(client->get_body && (error = OB_Http_Client_decode_body(client, response)) != OB_HTTP_ERROR_NONE) {
+        return error;
     }
     
     return OB_HTTP_ERROR_NONE;
@@ -253,6 +313,8 @@ void OB_Http_Request_init(struct OB_Http_Request *request) {
     request->method              = OB_HTTP_METHOD_GET;
     request->follow_redirections = true;
     request->curl_headers        = NULL;
+    
+    OB_Http_Body_init(&request->body);
     OB_Http_Headers_init(&request->headers);
 }
 
@@ -261,21 +323,22 @@ void OB_Http_Request_free(struct OB_Http_Request *request) {
 
     curl_slist_free_all(request->curl_headers);
     OB_Http_Headers_free(&request->headers);
+    OB_Http_Body_free(&request->body);
     OB_Http_Request_init(request);
 }
 
 void OB_Http_Response_init(struct OB_Http_Response *response) {
     assert(response != NULL);
 
-    OB_Buffer_init(&response->body, 0);
+    OB_Http_Body_init(&response->body);
     OB_Http_Headers_init(&response->headers);
-    response->status_code  = 0u;
+    response->status_code = 0u;
 }
 
 void OB_Http_Response_free(struct OB_Http_Response *response) {
     assert(response != NULL);
 
-    OB_Buffer_free(&response->body);
+    OB_Http_Body_free(&response->body);
     OB_Http_Headers_free(&response->headers);
     OB_Http_Response_init(response);
 }
