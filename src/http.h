@@ -27,7 +27,7 @@ struct OB_Http_Client {
 
 struct OB_Http_Request {
     const char            *url;
-    struct OB_Http_Body    body;
+    struct OB_Body    body;
     enum OB_Http_Method    method;
     struct OB_Http_Headers headers;
     bool                   follow_redirections;
@@ -35,7 +35,7 @@ struct OB_Http_Request {
 };
 
 struct OB_Http_Response {
-    struct OB_Http_Body      body;
+    struct OB_Body      body;
     struct OB_Http_Headers   headers;
     unsigned                 status_code;
 };
@@ -44,6 +44,7 @@ bool               OB_Http_Client_init(struct OB_Http_Client*);
 void               OB_Http_Client_free(struct OB_Http_Client*);
 enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client*, struct OB_Http_Request*, struct OB_Http_Response*);
 bool               OB_Http_Client_get_headers(struct OB_Http_Client*, struct OB_Http_Response*);
+const char        *OB_Http_Client_get_error(const struct OB_Http_Client*);
 
 void OB_Http_Request_init(struct OB_Http_Request*);
 void OB_Http_Request_free(struct OB_Http_Request*);

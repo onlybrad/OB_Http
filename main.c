@@ -13,13 +13,14 @@ int main(void) {
     request.url = "https://pokeapi.co/api/v2/pokemon/pikachu";
     OB_Http_Headers_append(&request.headers, "accept", "application/json"); //can fail
     
-    bool success;
-    const char *value;
+    bool                      success;
+    const char               *value;
+    struct CJSON             *json;
     struct CJSON_QueryBuilder query_builder;
 
     enum OB_Http_Error error;
     if((error = OB_Http_Client_fetch(&client, &request, &response)) != OB_HTTP_ERROR_NONE) {
-        fprintf(stderr, "Error: %s\n", client.error);
+        fprintf(stderr, "Error: %s\n", OB_Http_Client_get_error(&client));
         goto end;
     }
 
@@ -28,13 +29,15 @@ int main(void) {
         goto end;
     }
 
-    if(response.body.type != OB_HTTP_BODY_TYPE_JSON) {
+    if((json = OB_Body_get_json(&response.body)) == NULL) {
         fputs("Body is not json.\n", stderr);
         goto end;
     }
 
-    query_builder = CJSON_get_query_builder(&response.body.u.json_parser.json);
-    CJSON_QueryBuilder_format(&query_builder, "kkkkk", "sprites", "versions", "generation-i", "yellow", "front_default");
+    query_builder = CJSON_get_query_builder(json);
+    CJSON_QueryBuilder_format(&query_builder, "kkkkk", 
+        "sprites", "versions", "generation-i", "yellow", "front_default"
+    );
 
     value = CJSON_as_string(query_builder.json, &success);
     if(!success) {

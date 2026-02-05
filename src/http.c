@@ -109,55 +109,63 @@ static enum OB_Http_Error OB_Http_Client_decode_body(struct OB_Http_Client *clie
 
     static const char text_plain[] = "text/plain";
     if(strncmp(content_type->value, text_plain, sizeof(text_plain) - 1) == 0) {
-        response->body.type = OB_HTTP_BODY_TYPE_BUFFER;
+        response->body.type = OB_BODY_TYPE_BUFFER;
         return OB_HTTP_ERROR_NONE;
     }
 
     static const char application_json[] = "application/json";
     if(strncmp(content_type->value, application_json, sizeof(application_json) - 1) == 0) {
-        const char *const json_string = (const char*)response->body.u.buffer.data;
-        const unsigned    size        = (unsigned)response->body.u.buffer.size;
+        struct OB_Buffer buffer;
+        const bool success = OB_Body_move_buffer(&response->body, &buffer);
+        assert(success);
+        (void)success;
 
-        CJSON_Parser_parse_init(&response->body.u.json_parser);
-        if(!CJSON_parse(&response->body.u.json_parser, json_string, size)) {
+        switch(OB_Body_parse_json(&response->body, &buffer)) {
+        case OB_JSON_ERROR_NONE:
+            OB_Buffer_free(&buffer);
+            return OB_HTTP_ERROR_NONE;
+        
+        case OB_JSON_ERROR_TOO_LARGE:
+            OB_Body_set_buffer(&response->body, &buffer);
+            return OB_HTTP_ERROR_TOO_LARGE;
+        
+        case OB_JSON_ERROR_PARSING:
+            OB_Body_set_buffer(&response->body, &buffer);
             return OB_HTTP_ERROR_JSON_PARSING;
         }
-
-        response->body.type = OB_HTTP_BODY_TYPE_JSON;
-        return OB_HTTP_ERROR_NONE;
     }
 
     static const char text_html[] = "text/html";
     if(strncmp(content_type->value, text_html, sizeof(text_html) - 1) == 0) {
-        response->body.type = OB_HTTP_BODY_TYPE_HTML;
+        response->body.type = OB_BODY_TYPE_HTML;
         return OB_HTTP_ERROR_NONE;
     }
 
     static const char application_xml[] = "application/xml";
     if(strncmp(content_type->value, application_xml, sizeof(application_xml) - 1) == 0) {
-        response->body.type = OB_HTTP_BODY_TYPE_XML;
+        response->body.type = OB_BODY_TYPE_XML;
         return OB_HTTP_ERROR_NONE;
     }
 
     static const char urlencoded[] = "application/x-www-form-urlencoded";
     if(strncmp(content_type->value, urlencoded, sizeof(urlencoded) - 1) == 0) {
-        response->body.type = OB_HTTP_BODY_TYPE_URL_ENCODED;
+        response->body.type = OB_BODY_TYPE_URL_ENCODED;
         return OB_HTTP_ERROR_NONE;
     }
 
     static const char multipart_form_data[] = "multipart/form-data";
     if(strncmp(content_type->value, multipart_form_data, sizeof(multipart_form_data) - 1) == 0) {
-        response->body.type = OB_HTTP_BODY_TYPE_FORM_DATA;
+        response->body.type = OB_BODY_TYPE_FORM_DATA;
         return OB_HTTP_ERROR_NONE;
     }
     
     static const char octect_stream[] = "application/octet-stream";
     if(strncmp(content_type->value, octect_stream, sizeof(octect_stream) - 1) == 0) {
-        response->body.type = OB_HTTP_BODY_TYPE_BUFFER;
+        response->body.type = OB_BODY_TYPE_BUFFER;
         return OB_HTTP_ERROR_NONE;
     }
 
-    response->body.type = OB_HTTP_BODY_TYPE_BUFFER;
+    response->body.type = OB_BODY_TYPE_BUFFER;
     return OB_HTTP_ERROR_NONE;
 }
 
@@ -235,7 +243,7 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *client, struct OB
         OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, &response->body.u.buffer);
         OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_Http_Client_write_callback);
         
-        OB_Http_Body_use_buffer(&response->body);
+        OB_Body_use_buffer(&response->body);
         if(!OB_Buffer_reserve(&response->body.u.buffer, CURL_MAX_WRITE_SIZE)) {
             return OB_HTTP_ERROR_MALLOC;
         }
@@ -306,6 +314,12 @@ bool OB_Http_Client_get_headers(struct OB_Http_Client *client, struct OB_Http_Re
     return true;
 }
 
+const char *OB_Http_Client_get_error(const struct OB_Http_Client *const client) {
+    assert(client != NULL);
+
+    return client->error;
+}
+
 void OB_Http_Request_init(struct OB_Http_Request *request) {
     assert(request != NULL);
     
@@ -314,7 +328,7 @@ void OB_Http_Request_init(struct OB_Http_Request *request) {
     request->follow_redirections = true;
     request->curl_headers        = NULL;
     
-    OB_Http_Body_init(&request->body);
+    OB_Body_init(&request->body);
     OB_Http_Headers_init(&request->headers);
 }
 
@@ -323,14 +337,14 @@ void OB_Http_Request_free(struct OB_Http_Request *request) {
 
     curl_slist_free_all(request->curl_headers);
     OB_Http_Headers_free(&request->headers);
-    OB_Http_Body_free(&request->body);
+    OB_Body_free(&request->body);
     OB_Http_Request_init(request);
 }
 
 void OB_Http_Response_init(struct OB_Http_Response *response) {
     assert(response != NULL);
 
-    OB_Http_Body_init(&response->body);
+    OB_Body_init(&response->body);
     OB_Http_Headers_init(&response->headers);
     response->status_code = 0u;
 }
@@ -338,7 +352,7 @@ void OB_Http_Response_init(struct OB_Http_Response *response) {
 void OB_Http_Response_free(struct OB_Http_Response *response) {
     assert(response != NULL);
 
-    OB_Http_Body_free(&response->body);
+    OB_Body_free(&response->body);
     OB_Http_Headers_free(&response->headers);
     OB_Http_Response_init(response);
 }

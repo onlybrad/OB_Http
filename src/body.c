@@ -1,102 +1,143 @@
 #include <assert.h>
 #include "body.h"
 
-void OB_Http_Body_init(struct OB_Http_Body *body) {
+void OB_Body_init(struct OB_Body *const body) {
     assert(body != NULL);
 
     body->u.none = NULL;
-    body->type   = OB_HTTP_BODY_TYPE_NONE;
+    body->type   = OB_BODY_TYPE_NONE;
 }
 
-void OB_Http_Body_move_file(struct OB_Http_Body *body, FILE *file) {
+void OB_Body_use_buffer(struct OB_Body *const body) {
     assert(body != NULL);
-    assert(file != NULL);
 
-    OB_Http_Body_free(body);
-    body->u.file = file;
-    body->type = OB_HTTP_BODY_TYPE_FILE;
+    if(body->type != OB_BODY_TYPE_BUFFER) {
+        OB_Body_free(body);
+        body->type = OB_BODY_TYPE_BUFFER;
+        OB_Buffer_init(&body->u.buffer, 0);
+    }
 }
 
-void OB_Http_Body_move_bytes(struct OB_Http_Body *body, unsigned char *bytes, size_t size) {
+void OB_Body_set_buffer(struct OB_Body *const body, struct OB_Buffer *const buffer) {
     assert(body != NULL);
+    assert(buffer != NULL);
 
-    OB_Http_Body_free(body);
-    struct OB_Buffer *const buffer = &body->u.buffer;
-    buffer->size     = size;
-    buffer->capacity = size;
-    buffer->data     = bytes;
-}
-
-void OB_Http_Body_move_json(struct OB_Http_Body *body, struct CJSON_Parser *parser) {
-    assert(body != NULL);
-    assert(parser != NULL);
-
-    OB_Http_Body_free(body);
-    body->u.json_parser = *parser;
-    body->type          = OB_HTTP_BODY_TYPE_JSON;
-}
-
-void OB_Http_Body_move_buffer(struct OB_Http_Body *body, struct OB_Buffer *buffer) {
-    assert(body != NULL);
-    assert(buffer != NULL); 
-
-    OB_Http_Body_free(body);
+    OB_Body_free(body);
+    body->type     = OB_BODY_TYPE_BUFFER;
     body->u.buffer = *buffer;
-    body->type     = OB_HTTP_BODY_TYPE_BUFFER;
-    OB_Buffer_init(buffer, 0);
 }
 
-void OB_Http_Body_use_buffer(struct OB_Http_Body *body) {
+bool OB_Body_move_buffer(struct OB_Body *const body, struct OB_Buffer *const buffer) {
     assert(body != NULL);
+    assert(buffer != NULL);
 
-    OB_Http_Body_free(body);
-    OB_Buffer_init(&body->u.buffer, 0);
-    body->type = OB_HTTP_BODY_TYPE_BUFFER;
-}
-
-bool OB_Http_Body_set_file_path(struct OB_Http_Body *body, const char *file_path) {
-    assert(body != NULL);
-    assert(file_path != NULL);
-
-    OB_Http_Body_free(body);
-    //TODO handle utf8 path names on windows
-    if((body->u.file = fopen(file_path, "rb")) == NULL) {
+    if(body->type != OB_BODY_TYPE_BUFFER) {
         return false;
     }
 
-    body->type = OB_HTTP_BODY_TYPE_FILE;
+    *buffer = body->u.buffer;
+    OB_Body_init(body);
+    return true;
+}
+
+struct OB_Buffer *OB_Body_get_buffer(struct OB_Body *const body) {
+    assert(body != NULL);
+
+    return body->type == OB_BODY_TYPE_BUFFER ? &body->u.buffer : NULL;
+}
+
+void OB_Body_set_file(struct OB_Body *const body, FILE *const file) {
+    assert(body != NULL);
+    assert(file != NULL);
+
+    OB_Body_free(body);
+    body->type   = OB_BODY_TYPE_FILE;
+    body->u.file = file;
+}
+
+bool OB_Body_set_file_path(struct OB_Body *const body, const char *file_path) {
+    assert(body != NULL);
+    assert(file_path != NULL);
+
+    FILE *file = fopen(file_path, "rb");
+    if(file == NULL) {
+        return false;
+    }
+
+    OB_Body_set_file(body, file);
 
     return true;
 }
 
-void OB_Http_Body_free(struct OB_Http_Body *body) {
+FILE *OB_Body_get_file(struct OB_Body *const body) {
+    assert(body != NULL);
+
+    return body->type == OB_BODY_TYPE_FILE ? body->u.file : NULL;
+}
+
+void OB_Body_use_json(struct OB_Body *const body) {
+    assert(body != NULL);
+
+    if(body->type != OB_BODY_TYPE_JSON) {
+        OB_Body_free(body);
+        body->type = OB_BODY_TYPE_JSON;
+        CJSON_Parser_init(&body->u.json.parser);
+    }
+}
+
+enum OB_JSON_Error OB_Body_parse_json(struct OB_Body *const body, struct OB_Buffer *const buffer) {
+    assert(body != NULL);
+    assert(buffer != NULL);
+
+    if(buffer->size > UINT_MAX) {
+        return OB_JSON_ERROR_TOO_LARGE;
+    }
+
+    if(body->type != OB_BODY_TYPE_JSON) {
+        OB_Body_use_json(body);
+    }
+
+    body->u.json.root = CJSON_parse(&body->u.json.parser, (const char*)buffer->data, (unsigned)buffer->size);
+    
+    return body->u.json.root == NULL
+        ? OB_JSON_ERROR_PARSING
+        : OB_JSON_ERROR_NONE;    
+}
+
+struct CJSON *OB_Body_get_json(struct OB_Body *const body) {
+    assert(body != NULL);
+
+    return body->type == OB_BODY_TYPE_JSON ? body->u.json.root : NULL;
+}
+
+void OB_Body_free(struct OB_Body *const body) {
     assert(body != NULL);
 
     switch(body->type) {
-    case OB_HTTP_BODY_TYPE_NONE:
+    case OB_BODY_TYPE_NONE:
         return;
-    case OB_HTTP_BODY_TYPE_BUFFER:
+    case OB_BODY_TYPE_BUFFER:
         OB_Buffer_free(&body->u.buffer);
         break;
-    case OB_HTTP_BODY_TYPE_FILE:
+    case OB_BODY_TYPE_FILE:
         fclose(body->u.file);
         break;
-    case OB_HTTP_BODY_TYPE_URL_ENCODED:
+    case OB_BODY_TYPE_URL_ENCODED:
         assert(0 && "URL_ENCODED Unimplemented");
         break;
-    case OB_HTTP_BODY_TYPE_FORM_DATA:
+    case OB_BODY_TYPE_FORM_DATA:
         assert(0 && "FORM_DATA Unimplemented");
         break;
-    case OB_HTTP_BODY_TYPE_JSON:
-        CJSON_Parser_free(&body->u.json_parser);
+    case OB_BODY_TYPE_JSON:
+        CJSON_Parser_free(&body->u.json.parser);
         break;
-    case OB_HTTP_BODY_TYPE_HTML:
+    case OB_BODY_TYPE_HTML:
         assert(0 && "HTML Unimplemented");
         break;     
-    case OB_HTTP_BODY_TYPE_XML:
+    case OB_BODY_TYPE_XML:
         assert(0 && "XML Unimplemented");
         break;     
     }
 
-    OB_Http_Body_init(body);
+    OB_Body_init(body);
 }
