@@ -46,6 +46,12 @@ struct OB_Buffer *OB_Body_get_buffer(struct OB_Body *const body) {
     return body->type == OB_BODY_TYPE_BUFFER ? &body->u.buffer : NULL;
 }
 
+struct OB_Buffer *OB_Body_get_html(struct OB_Body *const body) {
+    assert(body != NULL);
+
+    return body->type == OB_BODY_TYPE_HTML ? &body->u.buffer : NULL;
+}
+
 void OB_Body_set_file(struct OB_Body *const body, FILE *const file) {
     assert(body != NULL);
     assert(file != NULL);
@@ -132,8 +138,8 @@ void OB_Body_free(struct OB_Body *const body) {
         CJSON_Parser_free(&body->u.json.parser);
         break;
     case OB_BODY_TYPE_HTML:
-        assert(0 && "HTML Unimplemented");
-        break;     
+        OB_Buffer_free(&body->u.buffer);
+        break;
     case OB_BODY_TYPE_XML:
         assert(0 && "XML Unimplemented");
         break;     

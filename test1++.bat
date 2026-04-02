@@ -1,0 +1,1 @@
+g++ -std=c++11 -g src/*.c tests/test1.c cjson.a vendors\libcurl\build\debug\lib\libcurl-d.dll -Ivendors\libcurl\include -Ivendors\CJSON -Wall -Wextra -pedantic -Wconversion -Wstrict-overflow=5 -Wshadow -Wunused-macros -Wcast-qual -Wcast-align -Wwrite-strings -Wdangling-else -Wlogical-op -Winline -o test1++.exe

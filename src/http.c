@@ -14,6 +14,14 @@
         }\
     } while(0)
 
+#define OB_CURL_SETOPT_OR_BREAK(CURL, CURLOPTION, VALUE)\
+    do {\
+        if(curl_easy_setopt((CURL), (CURLOPTION), (VALUE)) != CURLE_OK) {\
+            error = OB_HTTP_ERROR_CURL;\
+            break;\
+        }\
+    } while(0)
+
 //macro used to call the curl_easy_getinfo function and return OB_HTTP_ERROR_CURL if the function call fails
 #define OB_CURL_GETINFO(CURL, CURLINFO, VALUE)\
     do {\
@@ -67,11 +75,19 @@ static enum OB_Http_Error OB_Http_Client_prepare_request_headers(struct OB_Http_
 
         //using CURLOPT_ACCEPT_ENCODING instead of CURLOPT_HTTPHEADER will ensure that decoding is done automatically by curl
         if(strcmp(header.name, "accept-encoding") == 0) {
-            if((curl_easy_setopt(client->curl, CURLOPT_ACCEPT_ENCODING, header.value)) != CURLE_OK) {
-                error = OB_HTTP_ERROR_CURL;
-                break;
-            }
+            OB_CURL_SETOPT_OR_BREAK(client->curl, CURLOPT_ACCEPT_ENCODING, header.value);
             continue;
+        }
+
+        if(strcmp(header.name, "authorization") == 0) {
+            static const char basic[] = "Basic "; 
+            if(strncmp(header.value, basic, sizeof(basic) - 1) == 0 && strlen(header.value) > sizeof(basic) - 1) {
+                const char *const credentials = header.value + sizeof(basic) - 1;
+
+                OB_CURL_SETOPT_OR_BREAK(client->curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+                OB_CURL_SETOPT_OR_BREAK(client->curl, CURLOPT_USERPWD, credentials);
+                continue;
+            }
         }
 
         char str_header[OB_MAX_HEADER_SIZE];
@@ -339,6 +355,30 @@ void OB_Http_Request_free(struct OB_Http_Request *request) {
     OB_Http_Headers_free(&request->headers);
     OB_Body_free(&request->body);
     OB_Http_Request_init(request);
+}
+
+bool OB_Http_Request_basic_auth(struct OB_Http_Request *const request, const char *const username, const char *const password) {
+    assert(request != NULL);
+    assert(username != NULL);
+    assert(password != NULL);
+
+    const int size = snprintf(NULL, 0, "Basic %s:%s", username, password);
+    if(size < 0) {
+        return false;
+    }
+
+    char *value = (char*)OB_MALLOC(((size_t)size + 1) * sizeof(char));
+    if(value == NULL) {
+        return false;
+    }
+
+    snprintf(value, (size_t)size + 1, "Basic %s:%s", username, password);
+
+    const bool success = OB_Http_Headers_set(&request->headers, "authorization", value);
+
+    OB_FREE(value);
+
+    return success;
 }
 
 void OB_Http_Response_init(struct OB_Http_Response *response) {

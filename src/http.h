@@ -1,8 +1,9 @@
 #ifndef OB_HTTP_H
 #define OB_HTTP_H
 
-#include <curl\curl.h>
+#include <curl/curl.h>
 #include <stdbool.h>
+
 #include "error.h"
 #include "buffer.h"
 #include "body.h"
@@ -27,7 +28,7 @@ struct OB_Http_Client {
 
 struct OB_Http_Request {
     const char            *url;
-    struct OB_Body    body;
+    struct OB_Body         body;
     enum OB_Http_Method    method;
     struct OB_Http_Headers headers;
     bool                   follow_redirections;
@@ -35,9 +36,9 @@ struct OB_Http_Request {
 };
 
 struct OB_Http_Response {
-    struct OB_Body      body;
-    struct OB_Http_Headers   headers;
-    unsigned                 status_code;
+    struct OB_Body         body;
+    struct OB_Http_Headers headers;
+    unsigned               status_code;
 };
 
 bool               OB_Http_Client_init(struct OB_Http_Client*);
@@ -48,6 +49,7 @@ const char        *OB_Http_Client_get_error(const struct OB_Http_Client*);
 
 void OB_Http_Request_init(struct OB_Http_Request*);
 void OB_Http_Request_free(struct OB_Http_Request*);
+bool OB_Http_Request_basic_auth(struct OB_Http_Request*, const char *username, const char *password);
 
 void OB_Http_Response_init(struct OB_Http_Response*);
 void OB_Http_Response_free(struct OB_Http_Response*);

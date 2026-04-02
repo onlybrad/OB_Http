@@ -61,16 +61,16 @@ bool OB_Http_Headers_append(struct OB_Http_Headers *headers, const char *name, c
     struct OB_Http_IndexHeader *const header = headers->data + headers->size;
 
     const unsigned char *bytes = (const unsigned char*)name;
-    unsigned char *copied_name;
-    if((copied_name = OB_Buffer_append(&headers->string_buffer, bytes, (size_t)-1)) == NULL) {
+    unsigned char *copied_name = OB_Buffer_append(&headers->string_buffer, bytes, (size_t)-1);
+    if(copied_name == NULL) {
         return false;
     }
     OB_Util_strtolower((char*)copied_name);
     header->name_index  = (size_t)(copied_name - headers->string_buffer.data);
 
     bytes = (const unsigned char*)value;
-    unsigned char *copied_value;
-    if((copied_value = OB_Buffer_append(&headers->string_buffer, bytes, (size_t)-1)) == NULL) {
+    unsigned char *copied_value = OB_Buffer_append(&headers->string_buffer, bytes, (size_t)-1);
+    if(copied_value == NULL) {
         return false;
     }
     header->value_index = (size_t)(copied_value - headers->string_buffer.data);

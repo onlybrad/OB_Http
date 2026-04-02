@@ -45,6 +45,7 @@ void              OB_Body_use_buffer(struct OB_Body*);
 void              OB_Body_set_buffer(struct OB_Body*, struct OB_Buffer*);
 bool              OB_Body_move_buffer(struct OB_Body*, struct OB_Buffer*);
 struct OB_Buffer *OB_Body_get_buffer(struct OB_Body*);
+struct OB_Buffer *OB_Body_get_html(struct OB_Body*);
 
 void OB_Body_set_file     (struct OB_Body*, FILE*);
 bool OB_Body_set_file_path(struct OB_Body*, const char*);
