@@ -1,6 +1,8 @@
 #include <assert.h>
+
 #include "http.h"
 #include "util.h"
+#include "file.h"
 
 #define OB_HEADERS_BUFFER_SIZE 1024 
 #define OB_MAX_HEADER_SIZE     (1 << 13)
@@ -252,16 +254,15 @@ static bool OB_BodySource_free(struct OB_BodySource *const body_source) {
     return true;
 }
 
-static bool OB_BodySource_set_file_path(struct OB_BodySource *const body_source, const char *const file_path, const char *const mode) {
+static bool OB_BodySource_set_file_path(struct OB_BodySource *const body_source, const char *const file_path, bool is_readmode) {
     assert(body_source != NULL);
     assert(file_path != NULL);
-    assert(mode != NULL);
 
     if(!OB_BodySource_free(body_source)) {
         return false;
     }
     body_source->type = OB_BODY_SOURCE_TYPE_FILE;
-    return (body_source->value.file = fopen(file_path, mode)) != NULL;
+    return (body_source->value.file = OB_fopen(file_path, is_readmode)) != NULL;
 }
 
 static bool OB_BodySource_set_file(struct OB_BodySource *const body_source, FILE *const file) {
@@ -559,7 +560,7 @@ bool OB_Http_Request_set_file_path(struct OB_Http_Request *const request, const 
     assert(request != NULL);
     assert(path != NULL);
 
-    return OB_BodySource_set_file_path(&request->body_source, path, "rb");
+    return OB_BodySource_set_file_path(&request->body_source, path, true);
 }
 
 void OB_Http_Response_init(struct OB_Http_Response *const response) {
@@ -591,7 +592,7 @@ bool OB_Http_Response_set_file_path(struct OB_Http_Response *const response, con
     assert(response != NULL);
     assert(path != NULL);
 
-    return OB_BodySource_set_file_path(&response->body_source, path, "wb");
+    return OB_BodySource_set_file_path(&response->body_source, path, false);
 }
 
 unsigned OB_Http_Response_get_status_code(const struct OB_Http_Response *const response) {
