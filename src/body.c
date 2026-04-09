@@ -52,35 +52,6 @@ struct OB_Buffer *OB_Body_get_html(struct OB_Body *const body) {
     return body->type == OB_BODY_TYPE_HTML ? &body->u.buffer : NULL;
 }
 
-void OB_Body_set_file(struct OB_Body *const body, FILE *const file) {
-    assert(body != NULL);
-    assert(file != NULL);
-
-    OB_Body_free(body);
-    body->type   = OB_BODY_TYPE_FILE;
-    body->u.file = file;
-}
-
-bool OB_Body_set_file_path(struct OB_Body *const body, const char *file_path) {
-    assert(body != NULL);
-    assert(file_path != NULL);
-
-    FILE *file = fopen(file_path, "rb");
-    if(file == NULL) {
-        return false;
-    }
-
-    OB_Body_set_file(body, file);
-
-    return true;
-}
-
-FILE *OB_Body_get_file(struct OB_Body *const body) {
-    assert(body != NULL);
-
-    return body->type == OB_BODY_TYPE_FILE ? body->u.file : NULL;
-}
-
 void OB_Body_use_json(struct OB_Body *const body) {
     assert(body != NULL);
 
@@ -124,9 +95,6 @@ void OB_Body_free(struct OB_Body *const body) {
         return;
     case OB_BODY_TYPE_BUFFER:
         OB_Buffer_free(&body->u.buffer);
-        break;
-    case OB_BODY_TYPE_FILE:
-        fclose(body->u.file);
         break;
     case OB_BODY_TYPE_URL_ENCODED:
         assert(0 && "URL_ENCODED Unimplemented");

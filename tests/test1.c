@@ -10,7 +10,7 @@ int main(void) {
     OB_Http_Response_init(&response);
     OB_Http_Client_init(&client); //can fail
     
-    request.url = "https://pokeapi.co/api/v2/pokemon/pikachu";
+    OB_Http_Request_set_url(&request, "https://pokeapi.co/api/v2/pokemon/pikachu");
     OB_Http_Headers_append(&request.headers, "accept", "application/json"); //can fail
     
     enum OB_Http_Error error;
@@ -20,12 +20,14 @@ int main(void) {
             break;
         }
 
-        printf("Status Code: %u\n", response.status_code);
-        if(response.status_code != 200) {
+        const unsigned status_code = OB_Http_Response_get_status_code(&response);
+        printf("Status Code: %u\n", status_code);
+        if(status_code != 200) {
             break;
         }
 
-        struct CJSON *const json = OB_Body_get_json(&response.body);
+        struct OB_Body *const body = OB_Http_Response_get_body(&response);
+        struct CJSON *const json = OB_Body_get_json(body);
         if(json == NULL) {
             fputs("Body is not json.\n", stderr);
             break;
