@@ -9,6 +9,7 @@ int main(void) {
     OB_Http_Request_init(&request);
     OB_Http_Response_init(&response);
     OB_Http_Client_init(&client); //can fail
+    OB_Http_Client_show_download_progress(&client);
     
     OB_Http_Request_set_url(&request, "https://pokeapi.co/api/v2/pokemon/pikachu");
     OB_Http_Headers_append(&request.headers, "accept", "application/json"); //can fail

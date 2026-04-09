@@ -38,8 +38,50 @@
         }\
     } while(0)
 
+static bool OB_Http_default_progress_callback(const size_t accumulated, size_t total, void *const user_data) {
+    struct OB_Progress *const progress = (struct OB_Progress*)user_data;
 
-static size_t OB_Http_Client_file_callback(char *data, size_t size, size_t count, void *user_data) {
+    if((progress->is_download && progress->previous_downloaded == accumulated)
+    || (!progress->is_download && progress->previous_uploaded  == accumulated)
+    ) {
+        return true;
+    }
+
+    if(total == 0) {
+        printf("%zu / ??? (???%%).\n", accumulated);
+    } else {
+        const long double percentage = (long double)accumulated / (long double)total;
+        printf("%zu / %zu\n (%.2Lf%%)\n", accumulated, total, percentage);
+    }
+
+    if(progress->is_download) {
+        progress->previous_downloaded = accumulated;
+    } else {
+        progress->previous_downloaded = accumulated;
+    }
+
+    return true;
+}
+
+static int OB_libcurl_progress_callback(void *user_data, const curl_off_t dl_total, const curl_off_t dl_now, const curl_off_t ul_total, const curl_off_t ul_now) {
+    assert(user_data != NULL);
+
+    struct OB_Progress *const progress = (struct OB_Progress*)user_data;
+    
+    if(ul_now != 0 && progress->upload != NULL) {
+        progress->is_download = false;
+        return !progress->upload((size_t)ul_now, (size_t)ul_total, progress);
+    }
+    
+    if (dl_now != 0 && progress->download != NULL) {
+        progress->is_download = true;
+        return !progress->download((size_t)dl_now, (size_t)dl_total, progress);
+    }
+
+    return 0;
+}
+
+static size_t OB_libcurl_file_callback(char *data, size_t size, size_t count, void *user_data) {
     assert(size == 1);
     assert(data != NULL);
     assert(user_data != NULL);
@@ -47,7 +89,7 @@ static size_t OB_Http_Client_file_callback(char *data, size_t size, size_t count
     return fwrite(data, size, count, (FILE*)user_data);
 }
 
-static size_t OB_Http_Client_buffer_callback(char *data, size_t size, size_t count, void *user_data) {
+static size_t OB_libcurl_buffer_callback(char *data, size_t size, size_t count, void *user_data) {
     assert(size == 1);
     assert(data != NULL);
     assert(user_data != NULL);
@@ -196,14 +238,18 @@ static enum OB_Http_Error OB_Http_Client_decode_body(struct OB_Http_Client *cons
     return OB_HTTP_ERROR_NONE;
 }
 
-static void OB_BodySource_free(struct OB_BodySource *const body_source) {
+static bool OB_BodySource_free(struct OB_BodySource *const body_source) {
     assert(body_source != NULL);
 
     if(body_source->type == OB_BODY_SOURCE_TYPE_BUFFER) {
         OB_Body_free(&body_source->value.body);
     } else if(body_source->value.file != NULL) {
-        fclose(body_source->value.file);
+        if(fclose(body_source->value.file) == EOF) {
+            return false;
+        }
     }
+
+    return true;
 }
 
 static bool OB_BodySource_set_file_path(struct OB_BodySource *const body_source, const char *const file_path, const char *const mode) {
@@ -211,9 +257,23 @@ static bool OB_BodySource_set_file_path(struct OB_BodySource *const body_source,
     assert(file_path != NULL);
     assert(mode != NULL);
 
-    OB_BodySource_free(body_source);
+    if(!OB_BodySource_free(body_source)) {
+        return false;
+    }
     body_source->type = OB_BODY_SOURCE_TYPE_FILE;
     return (body_source->value.file = fopen(file_path, mode)) != NULL;
+}
+
+static bool OB_BodySource_set_file(struct OB_BodySource *const body_source, FILE *const file) {
+    assert(body_source != NULL);
+    assert(file != NULL);
+
+    if(!OB_BodySource_free(body_source)) {
+        return false;
+    }
+    body_source->type = OB_BODY_SOURCE_TYPE_FILE;
+    body_source->value.file = file;
+    return true;
 }
 
 static struct OB_Body *OB_BodySource_get_body(struct OB_BodySource *const body_source) {
@@ -227,11 +287,18 @@ static struct OB_Body *OB_BodySource_get_body(struct OB_BodySource *const body_s
 bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     assert(client != NULL);
 
+    client->curl                         = NULL;
+    client->max_redirections             = OB_MAX_REDIRECTIONS;
+    client->get_headers                  = false;
+    client->get_body                     = true;
+    client->progress.download            = NULL;
+    client->progress.download_data       = NULL;
+    client->progress.upload              = NULL;
+    client->progress.upload_data         = NULL;
+    client->progress.previous_downloaded = 0;
+    client->progress.previous_uploaded   = 0;
+    client->progress.is_download         = false;
     memset(client->error, 0, sizeof(client->error));
-
-    client->max_redirections = OB_MAX_REDIRECTIONS;
-    client->get_headers      = false;
-    client->get_body         = true;
 
     if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
         return false;
@@ -294,9 +361,19 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
     }
 
     if(client->get_body && request->method != OB_HTTP_METHOD_HEAD) {
+        OB_CURL_SETOPT(client->curl, CURLOPT_XFERINFOFUNCTION, OB_libcurl_progress_callback);
+        OB_CURL_SETOPT(client->curl, CURLOPT_XFERINFODATA, &client->progress);
+
+        if(client->progress.download != NULL || client->progress.upload != NULL) {
+            OB_CURL_SETOPT(client->curl, CURLOPT_NOPROGRESS, 0L);
+        } else {
+            OB_CURL_SETOPT(client->curl, CURLOPT_NOPROGRESS, 1L);
+        }
+
         if(response->body_source.type == OB_BODY_SOURCE_TYPE_BUFFER) {
             OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, &response->body_source.value.body.u.buffer);
-            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_Http_Client_buffer_callback);
+            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_libcurl_buffer_callback);
+            OB_CURL_SETOPT(client->curl, CURLOPT_FAILONERROR, 0L);
 
             OB_Body_use_buffer(&response->body_source.value.body);
             if(!OB_Buffer_reserve(&response->body_source.value.body.u.buffer, CURL_MAX_WRITE_SIZE)) {
@@ -304,7 +381,8 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
             }
         } else {
             OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, response->body_source.value.file);
-            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_Http_Client_file_callback);
+            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_libcurl_file_callback);
+            OB_CURL_SETOPT(client->curl, CURLOPT_FAILONERROR, 1L);
         }
     } else {
         OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, NULL);
@@ -335,11 +413,15 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
         return OB_HTTP_ERROR_MALLOC;   
     }
 
-    if(client->get_body
-        && response->body_source.type == OB_BODY_SOURCE_TYPE_BUFFER
-        && (error = OB_Http_Client_decode_body(client, response)) != OB_HTTP_ERROR_NONE
-    ) {
-        return error;
+    if(client->get_body) {
+        if(response->body_source.type == OB_BODY_SOURCE_TYPE_BUFFER) {
+            return OB_Http_Client_decode_body(client, response);
+        }
+        if(response->body_source.value.file != NULL) {
+            if(fflush(response->body_source.value.file) == EOF) {
+                return OB_HTTP_ERROR_FFLUSH;
+            }
+        }
     }
     
     return OB_HTTP_ERROR_NONE;
@@ -382,6 +464,32 @@ const char *OB_Http_Client_get_error(const struct OB_Http_Client *const client) 
     return client->error;
 }
 
+void OB_Http_Client_on_upload(struct OB_Http_Client *const client, OB_ProgressCallback callback, void *const user_data) {
+    assert(client != NULL);
+
+    client->progress.upload      = callback;
+    client->progress.upload_data = user_data;
+}
+
+void OB_Http_Client_on_download(struct OB_Http_Client *const client, OB_ProgressCallback callback, void *const user_data) {
+    assert(client != NULL);
+
+    client->progress.download      = callback;
+    client->progress.download_data = user_data;
+}
+
+void OB_Http_Client_show_upload_progress(struct OB_Http_Client *const client) {
+    assert(client != NULL);
+
+    OB_Http_Client_on_upload(client, OB_Http_default_progress_callback, NULL);
+}
+
+void OB_Http_Client_show_download_progress(struct OB_Http_Client *const client) {
+    assert(client != NULL);
+
+    OB_Http_Client_on_download(client, OB_Http_default_progress_callback, NULL);
+}
+
 void OB_Http_Request_init(struct OB_Http_Request *const request) {
     assert(request != NULL);
     
@@ -392,6 +500,7 @@ void OB_Http_Request_init(struct OB_Http_Request *const request) {
     
     OB_Body_init(&request->body_source.value.body);
     request->body_source.type = OB_BODY_SOURCE_TYPE_BUFFER;
+    
     OB_Http_Headers_init(&request->headers);
 }
 
@@ -439,13 +548,11 @@ bool OB_Http_Request_basic_auth(struct OB_Http_Request *const request, const cha
     return success;
 }
 
-void OB_Http_Request_set_file(struct OB_Http_Request *const request, FILE *const file) {
+bool OB_Http_Request_set_file(struct OB_Http_Request *const request, FILE *const file) {
     assert(request != NULL);
     assert(file != NULL);
 
-    OB_BodySource_free(&request->body_source);
-    request->body_source.type = OB_BODY_SOURCE_TYPE_FILE;
-    request->body_source.value.file = file;
+    return OB_BodySource_set_file(&request->body_source, file);
 }
 
 bool OB_Http_Request_set_file_path(struct OB_Http_Request *const request, const char *path) {
@@ -459,9 +566,10 @@ void OB_Http_Response_init(struct OB_Http_Response *const response) {
     assert(response != NULL);
 
     OB_Body_init(&response->body_source.value.body);
-    response->body_source.type = OB_BODY_SOURCE_TYPE_BUFFER;
+    response->body_source.type  = OB_BODY_SOURCE_TYPE_BUFFER;
+
     OB_Http_Headers_init(&response->headers);
-    response->status_code = 0u;
+    response->status_code          = 0u;
 }
 
 void OB_Http_Response_free(struct OB_Http_Response *const response) {
@@ -472,13 +580,11 @@ void OB_Http_Response_free(struct OB_Http_Response *const response) {
     OB_Http_Response_init(response);
 }
 
-void OB_Http_Response_set_file(struct OB_Http_Response *const response, FILE *const file) {
+bool OB_Http_Response_set_file(struct OB_Http_Response *const response, FILE *const file) {
     assert(response != NULL);
     assert(file != NULL);
 
-    OB_BodySource_free(&response->body_source);
-    response->body_source.type = OB_BODY_SOURCE_TYPE_FILE;
-    response->body_source.value.file = file;
+    return OB_BodySource_set_file(&response->body_source, file);
 }
 
 bool OB_Http_Response_set_file_path(struct OB_Http_Response *const response, const char *path) {
@@ -498,4 +604,4 @@ struct OB_Body *OB_Http_Response_get_body(struct OB_Http_Response *const respons
     assert(response != NULL);
     
     return OB_BodySource_get_body(&response->body_source);
-}   
+}

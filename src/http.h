@@ -9,6 +9,17 @@
 #include "body.h"
 #include "header.h"
 
+typedef bool (*OB_ProgressCallback)(const size_t accumulated, const size_t total, void *user_data);
+struct OB_Progress {
+    OB_ProgressCallback upload;
+    OB_ProgressCallback download;
+    size_t              previous_downloaded;
+    size_t              previous_uploaded;
+    void               *upload_data;
+    void               *download_data;
+    bool                is_download;
+};
+
 enum OB_Http_Method {
     OB_HTTP_METHOD_GET,
     OB_HTTP_METHOD_POST,
@@ -34,11 +45,12 @@ struct OB_BodySource {
 };
 
 struct OB_Http_Client {
-    CURL    *curl;
-    unsigned max_redirections;
-    bool     get_headers;
-    bool     get_body;
-    char     error[CURL_ERROR_SIZE];
+    CURL              *curl;
+    unsigned           max_redirections;
+    bool               get_headers;
+    bool               get_body;
+    struct OB_Progress progress;
+    char               error[CURL_ERROR_SIZE];
 };
 
 struct OB_Http_Request {
@@ -56,25 +68,29 @@ struct OB_Http_Response {
     unsigned               status_code;
 };
 
-bool               OB_Http_Client_init(struct OB_Http_Client*);
-void               OB_Http_Client_free(struct OB_Http_Client*);
-enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client*, struct OB_Http_Request*, struct OB_Http_Response*);
+bool               OB_Http_Client_init       (struct OB_Http_Client*);
+void               OB_Http_Client_free       (struct OB_Http_Client*);
+enum OB_Http_Error OB_Http_Client_fetch      (struct OB_Http_Client*, struct OB_Http_Request*, struct OB_Http_Response*);
 bool               OB_Http_Client_get_headers(struct OB_Http_Client*, struct OB_Http_Response*);
-const char        *OB_Http_Client_get_error(const struct OB_Http_Client*);
+void               OB_Http_Client_on_upload  (struct OB_Http_Client*, OB_ProgressCallback, void *user_data);
+void               OB_Http_Client_on_download(struct OB_Http_Client*, OB_ProgressCallback, void *user_data);
+void               OB_Http_Client_show_upload_progress(struct OB_Http_Client*);
+void               OB_Http_Client_show_download_progress(struct OB_Http_Client*);
+const char        *OB_Http_Client_get_error  (const struct OB_Http_Client*);
 
-void OB_Http_Request_init(struct OB_Http_Request*);
-void OB_Http_Request_free(struct OB_Http_Request*);
-void OB_Http_Request_set_url(struct OB_Http_Request*, const char*);
-bool OB_Http_Request_basic_auth(struct OB_Http_Request*, const char *username, const char *password);
-void OB_Http_Request_set_file(struct OB_Http_Request*, FILE*);
+void OB_Http_Request_init         (struct OB_Http_Request*);
+void OB_Http_Request_free         (struct OB_Http_Request*);
+void OB_Http_Request_set_url      (struct OB_Http_Request*, const char*);
+bool OB_Http_Request_basic_auth   (struct OB_Http_Request*, const char *username, const char *password);
+bool OB_Http_Request_set_file     (struct OB_Http_Request*, FILE*);
 bool OB_Http_Request_set_file_path(struct OB_Http_Request*, const char*);
 
-void OB_Http_Response_init(struct OB_Http_Response*);
-void OB_Http_Response_free(struct OB_Http_Response*);
-void OB_Http_Response_set_file(struct OB_Http_Response*, FILE*);
-bool OB_Http_Response_set_file_path(struct OB_Http_Response*, const char*);
-unsigned OB_Http_Response_get_status_code(const struct OB_Http_Response*);
-struct OB_Body *OB_Http_Response_get_body(struct OB_Http_Response*);
 
+void            OB_Http_Response_init           (struct OB_Http_Response*);
+void            OB_Http_Response_free           (struct OB_Http_Response*);
+bool            OB_Http_Response_set_file       (struct OB_Http_Response*, FILE*);
+bool            OB_Http_Response_set_file_path  (struct OB_Http_Response*, const char*);
+unsigned        OB_Http_Response_get_status_code(const struct OB_Http_Response*);
+struct OB_Body *OB_Http_Response_get_body       (struct OB_Http_Response*);
 
 #endif
