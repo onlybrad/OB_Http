@@ -52,7 +52,7 @@ static bool OB_Http_default_progress_callback(const size_t accumulated, size_t t
     if(total == 0) {
         printf("%zu / ??? (???%%).\n", accumulated);
     } else {
-        const long double percentage = (long double)accumulated * 100L / (long double)total;
+        const double percentage = (double)accumulated * 100.0 / (long double)total;
         printf("%zu / %zu\n (%.2Lf%%)\n", accumulated, total, percentage);
     }
 
