@@ -117,6 +117,7 @@ static size_t OB_libcurl_buffer_callback(char *data, size_t size, size_t count, 
     assert(size == 1);
     assert(data != NULL);
     assert(user_data != NULL);
+    (void)size;
 
     struct OB_Buffer *const buffer = (struct OB_Buffer*)user_data;
 
