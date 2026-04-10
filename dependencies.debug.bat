@@ -1,4 +1,4 @@
-REM build libcurl release (dynamic)
+REM build libcurl debug (dynamic)
 mkdir vendors\libcurl\build\debug
 cd vendors\libcurl\build\debug
 cmake ..\.. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DUSE_SCHANNEL=ON -DUSE_WINDOWS_SSPI=ON
