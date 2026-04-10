@@ -1,6 +1,6 @@
 call dependencies.bat
 
-gcc -std=c99 -O3 -c src/*.c -Ivendors\libcurl\include -Ivendors\CJSON -Wall -Wextra -pedantic -Wconversion -Wstrict-overflow=5 -Wshadow -Wunused-macros -Wbad-function-cast -Wcast-qual -Wcast-align -Wwrite-strings -Wdangling-else -Wlogical-op -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Winline
+gcc -std=c99 -O3 -c -DNDEBUG src/*.c -Ivendors\libcurl\include -Ivendors\CJSON -Wall -Wextra -pedantic -Wconversion -Wstrict-overflow=5 -Wshadow -Wunused-macros -Wbad-function-cast -Wcast-qual -Wcast-align -Wwrite-strings -Wdangling-else -Wlogical-op -Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes -Winline
 
 ar rcs obhttp.a
 for %%f in (*.o) do (
