@@ -40,47 +40,69 @@
         }\
     } while(0)
 
-static bool OB_Http_default_progress_callback(const size_t accumulated, size_t total, void *const user_data) {
-    struct OB_Progress *const progress = (struct OB_Progress*)user_data;
+static bool OB_Http_default_progress_callback(const size_t accumulated, size_t total, struct OB_ProgressData *const progress_data, const char *const message) {
+    assert(accumulated > 0);
+    assert(progress_data != NULL);
+    assert(message != NULL);
 
-    if((progress->is_download && progress->previous_downloaded == accumulated)
-    || (!progress->is_download && progress->previous_uploaded  == accumulated)
-    ) {
+    const int64_t time_elapsed = progress_data->current_time - progress_data->start_time;
+    if(time_elapsed == 0) {
         return true;
     }
 
+    const double speed = (double)accumulated / (double)time_elapsed;
     if(total == 0) {
-        printf("%zu / ??? (???%%).\n", accumulated);
+        printf("???%% %s (%zuB) %.2lf MB/s.\n", message, accumulated, speed);
     } else {
         const double percentage = (double)accumulated * 100.0 / (double)total;
-        printf("%zu / %zu\n (%.2f%%)\n", accumulated, total, percentage);
-    }
-
-    if(progress->is_download) {
-        progress->previous_downloaded = accumulated;
-    } else {
-        progress->previous_downloaded = accumulated;
+        printf("%.2f%% %s (%zuB) %.2lf MB/s.\n", percentage, message, accumulated, speed);
     }
 
     return true;
+}
+
+static bool OB_Http_default_download_progress_callback(const size_t accumulated, size_t total, struct OB_ProgressData *const progress_data) {
+    assert(accumulated > 0);
+    assert(progress_data != NULL);
+
+    return OB_Http_default_progress_callback(accumulated, total, progress_data, "Downloaded");
+}
+
+static bool OB_Http_default_upload_progress_callback(const size_t accumulated, size_t total, struct OB_ProgressData *const progress_data) {
+    assert(accumulated > 0);
+    assert(progress_data != NULL);
+
+    return OB_Http_default_progress_callback(accumulated, total, progress_data, "Uploaded");
 }
 
 static int OB_libcurl_progress_callback(void *user_data, const curl_off_t dl_total, const curl_off_t dl_now, const curl_off_t ul_total, const curl_off_t ul_now) {
     assert(user_data != NULL);
 
     struct OB_Progress *const progress = (struct OB_Progress*)user_data;
-    
-    if(ul_now != 0 && progress->upload != NULL) {
-        progress->is_download = false;
-        return !progress->upload((size_t)ul_now, (size_t)ul_total, progress);
-    }
-    
-    if (dl_now != 0 && progress->download != NULL) {
-        progress->is_download = true;
-        return !progress->download((size_t)dl_now, (size_t)dl_total, progress);
+    struct OB_ProgressData *progress_data;
+    size_t accumulated, total;
+
+    if(ul_now != 0 && progress->upload.callback != NULL) {
+        progress_data = &progress->upload;
+        accumulated   = (size_t)ul_now;
+        total         = (size_t)ul_total;
+    } else if(dl_now != 0 && progress->download.callback != NULL) {
+        progress_data = &progress->download;
+        accumulated   = (size_t)dl_now;
+        total         = (size_t)dl_total;
+    } else {
+        return 0;
     }
 
-    return 0;
+    if(progress_data->accumulated == accumulated) {
+        return 0;
+    }
+
+    progress_data->current_time = OB_get_usec_timestamp();
+    const bool success          = progress_data->callback(accumulated, total, progress_data);
+    progress_data->accumulated  = accumulated;
+
+    return !success;
 }
 
 static size_t OB_libcurl_file_callback(char *data, size_t size, size_t count, void *user_data) {
@@ -285,6 +307,16 @@ static struct OB_Body *OB_BodySource_get_body(struct OB_BodySource *const body_s
         : NULL;
 }
 
+static void OB_ProgressData_init(struct OB_ProgressData *const progress_data) {
+    assert(progress_data != NULL);
+
+    progress_data->callback     = NULL;
+    progress_data->user_data    = NULL;
+    progress_data->accumulated  = 0;
+    progress_data->start_time   = 0;
+    progress_data->current_time = 0;
+}
+
 bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     assert(client != NULL);
 
@@ -292,15 +324,10 @@ bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     client->max_redirections             = OB_MAX_REDIRECTIONS;
     client->get_headers                  = false;
     client->get_body                     = true;
-    client->progress.download            = NULL;
-    client->progress.download_data       = NULL;
-    client->progress.upload              = NULL;
-    client->progress.upload_data         = NULL;
-    client->progress.previous_downloaded = 0;
-    client->progress.previous_uploaded   = 0;
-    client->progress.is_download         = false;
+    OB_ProgressData_init(&client->progress.download);
+    OB_ProgressData_init(&client->progress.upload);
     memset(client->error, 0, sizeof(client->error));
-
+    
     if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
         return false;
     }
@@ -365,7 +392,7 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
         OB_CURL_SETOPT(client->curl, CURLOPT_XFERINFOFUNCTION, OB_libcurl_progress_callback);
         OB_CURL_SETOPT(client->curl, CURLOPT_XFERINFODATA, &client->progress);
 
-        if(client->progress.download != NULL || client->progress.upload != NULL) {
+        if(client->progress.download.callback != NULL || client->progress.upload.callback != NULL) {
             OB_CURL_SETOPT(client->curl, CURLOPT_NOPROGRESS, 0L);
         } else {
             OB_CURL_SETOPT(client->curl, CURLOPT_NOPROGRESS, 1L);
@@ -404,6 +431,8 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
         }
     }
 
+    client->progress.upload.start_time   = 
+    client->progress.download.start_time = OB_get_usec_timestamp();
     OB_CURL_PERFORM(client->curl);
 
     long status_code;
@@ -468,27 +497,27 @@ const char *OB_Http_Client_get_error(const struct OB_Http_Client *const client) 
 void OB_Http_Client_on_upload(struct OB_Http_Client *const client, OB_ProgressCallback callback, void *const user_data) {
     assert(client != NULL);
 
-    client->progress.upload      = callback;
-    client->progress.upload_data = user_data;
+    client->progress.upload.callback  = callback;
+    client->progress.upload.user_data = user_data;
 }
 
 void OB_Http_Client_on_download(struct OB_Http_Client *const client, OB_ProgressCallback callback, void *const user_data) {
     assert(client != NULL);
 
-    client->progress.download      = callback;
-    client->progress.download_data = user_data;
+    client->progress.download.callback  = callback;
+    client->progress.download.user_data = user_data;
 }
 
 void OB_Http_Client_show_upload_progress(struct OB_Http_Client *const client) {
     assert(client != NULL);
 
-    OB_Http_Client_on_upload(client, OB_Http_default_progress_callback, NULL);
+    OB_Http_Client_on_upload(client, OB_Http_default_upload_progress_callback, NULL);
 }
 
 void OB_Http_Client_show_download_progress(struct OB_Http_Client *const client) {
     assert(client != NULL);
 
-    OB_Http_Client_on_download(client, OB_Http_default_progress_callback, NULL);
+    OB_Http_Client_on_download(client, OB_Http_default_download_progress_callback, NULL);
 }
 
 void OB_Http_Request_init(struct OB_Http_Request *const request) {

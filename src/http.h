@@ -3,21 +3,28 @@
 
 #include <curl/curl.h>
 #include <stdbool.h>
+#include <time.h>
+#include <stdint.h>
 
 #include "error.h"
 #include "buffer.h"
 #include "body.h"
 #include "header.h"
 
-typedef bool (*OB_ProgressCallback)(const size_t accumulated, const size_t total, void *user_data);
+struct OB_ProgressData;
+
+typedef bool (*OB_ProgressCallback)(size_t accumulated, size_t total, struct OB_ProgressData*);
+
+struct OB_ProgressData {
+    OB_ProgressCallback callback;
+    void               *user_data;
+    size_t              accumulated;
+    int64_t             start_time;
+    int64_t             current_time;
+};
 struct OB_Progress {
-    OB_ProgressCallback upload;
-    OB_ProgressCallback download;
-    size_t              previous_downloaded;
-    size_t              previous_uploaded;
-    void               *upload_data;
-    void               *download_data;
-    bool                is_download;
+    struct OB_ProgressData download;
+    struct OB_ProgressData upload;
 };
 
 enum OB_Http_Method {
