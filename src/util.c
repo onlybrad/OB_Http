@@ -34,25 +34,24 @@ int64_t OB_get_usec_timestamp(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
 
-    return (int64_t)ts.tv_sec * 1000000LL +
-           (int64_t)(ts.tv_nsec / 1000);
+    return (int64_t)ts.tv_sec * 1000000LL + (int64_t)(ts.tv_nsec / 1000);
 #endif
 }
 
-struct OB_Bytes OB_format_bytes(const size_t bytes) {
-    static const char *OB_units[] = {
+struct OB_Size OB_format_bytes(const size_t bytes) {
+    static const char *units[] = {
         "B", "KB", "MB", "GB", "TB"
     };
 
-    struct OB_Bytes byte_units;
-    byte_units.value = (double)bytes;
+    struct OB_Size size;
+    size.value = (double)bytes;
 
     unsigned i;
-    for(i = 0U; i < sizeof(OB_units)/sizeof(OB_units[0]) && byte_units.value > 1024.0; i++) {
-        byte_units.value /= 1024.0;
+    for(i = 0U; i < sizeof(units)/sizeof(units[0]) - 1 && size.value >= 1024.0; i++) {
+        size.value /= 1024.0;
     }
 
-    byte_units.units = OB_units[i];
+    size.units = units[i];
 
-    return byte_units;
+    return size;
 }
