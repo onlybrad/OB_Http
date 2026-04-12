@@ -2,7 +2,6 @@
 
 #include "http.h"
 #include "util.h"
-#include "file.h"
 
 #define OB_HEADERS_BUFFER_SIZE 1024 
 #define OB_MAX_HEADER_SIZE     (1 << 13)
@@ -40,7 +39,7 @@
         }\
     } while(0)
 
-static bool OB_Http_default_progress_callback(const size_t accumulated, size_t total, struct OB_ProgressData *const progress_data, const char *const message) {
+static bool OB_Http_default_progress_callback(const size_t accumulated, const size_t total, struct OB_ProgressData *const progress_data, const char *const message) {
     assert(accumulated > 0);
     assert(progress_data != NULL);
     assert(message != NULL);
@@ -51,12 +50,12 @@ static bool OB_Http_default_progress_callback(const size_t accumulated, size_t t
     }
 
     const double speed = (double)accumulated / (double)time_elapsed;
-    const struct OB_Size bytes = OB_format_bytes(accumulated);
+    const struct OB_Size size = OB_format_bytes(accumulated);
     if(total == 0) {
-        printf("???%% %s (%.2lf%s) %.2lf MB/s.\n", message, bytes.value, bytes.units, speed);
+        printf("???%% %s (%.2lf%s) %.2lf MB/s.\n", message, size.value, size.units, speed);
     } else {
         const double percentage = (double)accumulated * 100.0 / (double)total;
-        printf("%.2f%% %s (%.2lf%s) %.2lf MB/s.\n", percentage, message, bytes.value, bytes.units, speed);
+        printf("%.2f%% %s (%.2lf%s) %.2lf MB/s.\n", percentage, message, size.value, size.units, speed);
     }
 
     return true;
@@ -193,120 +192,75 @@ static enum OB_Http_Error OB_Http_Client_prepare_request_headers(struct OB_Http_
 static enum OB_Http_Error OB_Http_Client_decode_body(struct OB_Http_Client *const client, struct OB_Http_Response *const response) {
     assert(client != NULL);
     assert(response != NULL);
-    assert(response->body_source.type == OB_BODY_SOURCE_TYPE_BUFFER);
+    assert(response->body.type != OB_HTTP_BODY_TYPE_FILE);
 
     struct curl_header *content_type;
     if(curl_easy_header(client->curl, "content-type", 0, CURLH_HEADER, -1, &content_type) != CURLHE_OK) {
         return OB_HTTP_ERROR_CURL;
     }
 
-    struct OB_Body *const body = &response->body_source.value.body; 
+    struct OB_Http_Body *const body = &response->body; 
 
     static const char text_plain[] = "text/plain";
     if(strncmp(content_type->value, text_plain, sizeof(text_plain) - 1) == 0) {
-        response->body_source.value.body.type = OB_BODY_TYPE_BUFFER;
+        body->type = OB_HTTP_BODY_TYPE_BUFFER;
         return OB_HTTP_ERROR_NONE;
     }
 
     static const char application_json[] = "application/json";
     if(strncmp(content_type->value, application_json, sizeof(application_json) - 1) == 0) {
         struct OB_Buffer buffer;
-        const bool success = OB_Body_move_buffer(body, &buffer);
+        const bool success = OB_Http_Body_move_buffer(body, &buffer);
         assert(success);
         (void)success;
 
-        switch(OB_Body_parse_json(body, &buffer)) {
+        switch(OB_Http_Body_parse_json(body, &buffer)) {
         case OB_JSON_ERROR_NONE:
             OB_Buffer_free(&buffer);
             return OB_HTTP_ERROR_NONE;
         
         case OB_JSON_ERROR_TOO_LARGE:
-            OB_Body_set_buffer(body, &buffer);
+            OB_Http_Body_set_buffer(body, &buffer);
             return OB_HTTP_ERROR_TOO_LARGE;
         
         case OB_JSON_ERROR_PARSING:
-            OB_Body_set_buffer(body, &buffer);
+            OB_Http_Body_set_buffer(body, &buffer);
             return OB_HTTP_ERROR_JSON_PARSING;
         }
     }
 
     static const char text_html[] = "text/html";
     if(strncmp(content_type->value, text_html, sizeof(text_html) - 1) == 0) {
-        body->type = OB_BODY_TYPE_HTML;
+        body->type = OB_HTTP_BODY_TYPE_HTML;
         return OB_HTTP_ERROR_NONE;
     }
 
     static const char application_xml[] = "application/xml";
     if(strncmp(content_type->value, application_xml, sizeof(application_xml) - 1) == 0) {
-        body->type = OB_BODY_TYPE_XML;
+        body->type = OB_HTTP_BODY_TYPE_XML;
         return OB_HTTP_ERROR_NONE;
     }
 
     static const char urlencoded[] = "application/x-www-form-urlencoded";
     if(strncmp(content_type->value, urlencoded, sizeof(urlencoded) - 1) == 0) {
-        body->type = OB_BODY_TYPE_URL_ENCODED;
+        body->type = OB_HTTP_BODY_TYPE_URL_ENCODED;
         return OB_HTTP_ERROR_NONE;
     }
 
     static const char multipart_form_data[] = "multipart/form-data";
     if(strncmp(content_type->value, multipart_form_data, sizeof(multipart_form_data) - 1) == 0) {
-        body->type = OB_BODY_TYPE_FORM_DATA;
+        body->type = OB_HTTP_BODY_TYPE_FORM_DATA;
         return OB_HTTP_ERROR_NONE;
     }
     
     static const char octect_stream[] = "application/octet-stream";
     if(strncmp(content_type->value, octect_stream, sizeof(octect_stream) - 1) == 0) {
-        body->type = OB_BODY_TYPE_BUFFER;
+        body->type = OB_HTTP_BODY_TYPE_BUFFER;
         return OB_HTTP_ERROR_NONE;
     }
 
-    body->type = OB_BODY_TYPE_BUFFER;
+    body->type = OB_HTTP_BODY_TYPE_BUFFER;
     return OB_HTTP_ERROR_NONE;
-}
-
-static bool OB_BodySource_free(struct OB_BodySource *const body_source) {
-    assert(body_source != NULL);
-
-    if(body_source->type == OB_BODY_SOURCE_TYPE_BUFFER) {
-        OB_Body_free(&body_source->value.body);
-    } else if(body_source->value.file != NULL) {
-        if(fclose(body_source->value.file) == EOF) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-static bool OB_BodySource_set_file_path(struct OB_BodySource *const body_source, const char *const file_path, bool is_readmode) {
-    assert(body_source != NULL);
-    assert(file_path != NULL);
-
-    if(!OB_BodySource_free(body_source)) {
-        return false;
-    }
-    body_source->type = OB_BODY_SOURCE_TYPE_FILE;
-    return (body_source->value.file = OB_fopen(file_path, is_readmode)) != NULL;
-}
-
-static bool OB_BodySource_set_file(struct OB_BodySource *const body_source, FILE *const file) {
-    assert(body_source != NULL);
-    assert(file != NULL);
-
-    if(!OB_BodySource_free(body_source)) {
-        return false;
-    }
-    body_source->type = OB_BODY_SOURCE_TYPE_FILE;
-    body_source->value.file = file;
-    return true;
-}
-
-static struct OB_Body *OB_BodySource_get_body(struct OB_BodySource *const body_source) {
-    assert(body_source != NULL);
-
-    return body_source->type == OB_BODY_SOURCE_TYPE_BUFFER
-        ? &body_source->value.body
-        : NULL;
 }
 
 static void OB_ProgressData_init(struct OB_ProgressData *const progress_data) {
@@ -400,19 +354,22 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
             OB_CURL_SETOPT(client->curl, CURLOPT_NOPROGRESS, 1L);
         }
 
-        if(response->body_source.type == OB_BODY_SOURCE_TYPE_BUFFER) {
-            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, &response->body_source.value.body.u.buffer);
+        if(response->body.type != OB_HTTP_BODY_TYPE_FILE) {
+            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, &response->body.u.buffer);
             OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_libcurl_buffer_callback);
             OB_CURL_SETOPT(client->curl, CURLOPT_FAILONERROR, 0L);
 
-            OB_Body_use_buffer(&response->body_source.value.body);
-            if(!OB_Buffer_reserve(&response->body_source.value.body.u.buffer, CURL_MAX_WRITE_SIZE)) {
+            OB_Http_Body_use_buffer(&response->body);
+            if(!OB_Buffer_reserve(&response->body.u.buffer, CURL_MAX_WRITE_SIZE)) {
                 return OB_HTTP_ERROR_MALLOC;
             }
-        } else {
-            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, response->body_source.value.file);
+        } else if(response->body.u.file != NULL) {
+            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, response->body.u.file);
             OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_libcurl_file_callback);
             OB_CURL_SETOPT(client->curl, CURLOPT_FAILONERROR, 1L);
+        } else {
+            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, NULL);
+            OB_CURL_SETOPT(client->curl, CURLOPT_WRITEFUNCTION, OB_Http_Client_noop_callback);
         }
     } else {
         OB_CURL_SETOPT(client->curl, CURLOPT_WRITEDATA, NULL);
@@ -446,11 +403,11 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
     }
 
     if(client->get_body) {
-        if(response->body_source.type == OB_BODY_SOURCE_TYPE_BUFFER) {
+        if(response->body.type != OB_HTTP_BODY_TYPE_FILE) {
             return OB_Http_Client_decode_body(client, response);
         }
-        if(response->body_source.value.file != NULL) {
-            if(fflush(response->body_source.value.file) == EOF) {
+        if(response->body.u.file != NULL) {
+            if(fflush(response->body.u.file) == EOF) {
                 return OB_HTTP_ERROR_FFLUSH;
             }
         }
@@ -529,11 +486,9 @@ void OB_Http_Request_init(struct OB_Http_Request *const request) {
     request->method              = OB_HTTP_METHOD_GET;
     request->follow_redirections = true;
     request->curl_headers        = NULL;
-    
-    OB_Body_init(&request->body_source.value.body);
-    request->body_source.type = OB_BODY_SOURCE_TYPE_BUFFER;
-    
+        
     OB_Http_Headers_init(&request->headers);
+    OB_Http_Body_init(&request->body);
 }
 
 void OB_Http_Request_free(struct OB_Http_Request *const request) {
@@ -541,11 +496,7 @@ void OB_Http_Request_free(struct OB_Http_Request *const request) {
 
     curl_slist_free_all(request->curl_headers);
     OB_Http_Headers_free(&request->headers);
-    if(request->body_source.type == OB_BODY_SOURCE_TYPE_BUFFER) {
-        OB_Body_free(&request->body_source.value.body);
-    } else {
-        fclose(request->body_source.value.file);
-    }
+    OB_Http_Body_free(&request->body);
     OB_Http_Request_init(request);
 }
 
@@ -580,50 +531,54 @@ bool OB_Http_Request_basic_auth(struct OB_Http_Request *const request, const cha
     return success;
 }
 
-bool OB_Http_Request_set_file(struct OB_Http_Request *const request, FILE *const file) {
+void OB_Http_Request_set_file(struct OB_Http_Request *const request, FILE *const file) {
     assert(request != NULL);
     assert(file != NULL);
 
-    return OB_BodySource_set_file(&request->body_source, file);
+    OB_Http_Body_set_file(&request->body, file);
 }
 
 bool OB_Http_Request_set_file_path(struct OB_Http_Request *const request, const char *path) {
     assert(request != NULL);
     assert(path != NULL);
 
-    return OB_BodySource_set_file_path(&request->body_source, path, true);
+    return OB_Http_Body_set_file_path(&request->body, path, true);
+}
+
+struct OB_Http_Body *OB_Http_Request_get_body(struct OB_Http_Request *const request) { 
+    assert(request != NULL);
+
+    return &request->body; 
 }
 
 void OB_Http_Response_init(struct OB_Http_Response *const response) {
     assert(response != NULL);
 
-    OB_Body_init(&response->body_source.value.body);
-    response->body_source.type  = OB_BODY_SOURCE_TYPE_BUFFER;
-
+    OB_Http_Body_init(&response->body);
     OB_Http_Headers_init(&response->headers);
-    response->status_code          = 0u;
+    response->status_code = 0u;
 }
 
 void OB_Http_Response_free(struct OB_Http_Response *const response) {
     assert(response != NULL);
 
-    OB_BodySource_free(&response->body_source);
+    OB_Http_Body_free(&response->body);
     OB_Http_Headers_free(&response->headers);
     OB_Http_Response_init(response);
 }
 
-bool OB_Http_Response_set_file(struct OB_Http_Response *const response, FILE *const file) {
+void OB_Http_Response_set_file(struct OB_Http_Response *const response, FILE *const file) {
     assert(response != NULL);
     assert(file != NULL);
 
-    return OB_BodySource_set_file(&response->body_source, file);
+    OB_Http_Body_set_file(&response->body, file);
 }
 
 bool OB_Http_Response_set_file_path(struct OB_Http_Response *const response, const char *path) {
     assert(response != NULL);
     assert(path != NULL);
 
-    return OB_BodySource_set_file_path(&response->body_source, path, false);
+    return OB_Http_Body_set_file_path(&response->body, path, false);
 }
 
 unsigned OB_Http_Response_get_status_code(const struct OB_Http_Response *const response) {
@@ -632,8 +587,8 @@ unsigned OB_Http_Response_get_status_code(const struct OB_Http_Response *const r
     return response->status_code;
 }
 
-struct OB_Body *OB_Http_Response_get_body(struct OB_Http_Response *const response) {
+struct OB_Http_Body *OB_Http_Response_get_body(struct OB_Http_Response *const response) {
     assert(response != NULL);
     
-    return OB_BodySource_get_body(&response->body_source);
+    return &response->body;
 }

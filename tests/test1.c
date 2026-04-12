@@ -27,8 +27,8 @@ int main(void) {
             break;
         }
 
-        struct OB_Body *const body = OB_Http_Response_get_body(&response);
-        struct CJSON *const json = OB_Body_get_json(body);
+        struct OB_Http_Body *const body = OB_Http_Response_get_body(&response);
+        struct CJSON *const json = OB_Http_Body_get_json(body);
         if(json == NULL) {
             fputs("Body is not json.\n", stderr);
             break;
