@@ -10,6 +10,7 @@
 #include "buffer.h"
 #include "body.h"
 #include "header.h"
+#include "queryparams.h"
 
 struct OB_ProgressData;
 
@@ -46,8 +47,13 @@ struct OB_Http_Client {
     char               error[CURL_ERROR_SIZE];
 };
 
+struct OB_Url {
+    const char                *value;
+    struct OB_Http_QueryParams query_params;
+};
+
 struct OB_Http_Request {
-    const char             *url;
+    struct OB_Url           url;
     struct OB_Http_Body     body;
     enum OB_Http_Method     method;
     struct OB_Http_Headers  headers;
@@ -61,6 +67,8 @@ struct OB_Http_Response {
     unsigned               status_code;
 };
 
+bool               OB_Http_init                         (void); 
+void               OB_Http_free                         (void); 
 bool               OB_Http_Client_init                  (struct OB_Http_Client*);
 void               OB_Http_Client_free                  (struct OB_Http_Client*);
 enum OB_Http_Error OB_Http_Client_fetch                 (struct OB_Http_Client*, struct OB_Http_Request*, struct OB_Http_Response*);
@@ -74,6 +82,7 @@ const char        *OB_Http_Client_get_error             (const struct OB_Http_Cl
 void OB_Http_Request_init                    (struct OB_Http_Request*);
 void OB_Http_Request_free                    (struct OB_Http_Request*);
 void OB_Http_Request_set_url                 (struct OB_Http_Request*, const char*);
+bool OB_Http_Request_set_query_param         (struct OB_Http_Request*, const char *name, const char *value);
 bool OB_Http_Request_basic_auth              (struct OB_Http_Request*, const char *username, const char *password);
 void OB_Http_Request_set_file                (struct OB_Http_Request*, FILE*);
 bool OB_Http_Request_set_file_path           (struct OB_Http_Request*, const char*);

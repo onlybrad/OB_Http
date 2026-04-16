@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <cjson.h>
+
 #include "buffer.h"
 
 enum OB_Http_BodyType {

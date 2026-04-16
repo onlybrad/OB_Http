@@ -2,6 +2,7 @@
 #define OB_HTTP_HEADER_H
 
 #include <stdint.h>
+
 #include "buffer.h"
 
 enum OB_Http_ContentType {

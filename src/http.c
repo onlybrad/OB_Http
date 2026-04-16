@@ -39,6 +39,9 @@
         }\
     } while(0)
 
+//dummy curl used only for escaping characters
+static CURL *dummy_curl;
+
 static bool OB_Http_default_progress_callback(const size_t accumulated, const size_t total, struct OB_ProgressData *const progress_data, const char *const message) {
     assert(accumulated > 0);
     assert(progress_data != NULL);
@@ -273,8 +276,34 @@ static void OB_ProgressData_init(struct OB_ProgressData *const progress_data) {
     progress_data->current_time = 0;
 }
 
+bool OB_Http_init(void) {
+    if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+        return false;
+    }
+
+    if(dummy_curl == NULL) {
+        return (dummy_curl = curl_easy_init()) != NULL;
+    }
+
+    return true;
+}
+
+void OB_Http_free(void) {
+    curl_global_cleanup();
+    
+    if(dummy_curl != NULL) {
+        curl_easy_cleanup(dummy_curl);
+    }
+}
+
 bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     assert(client != NULL);
+
+    if(dummy_curl == NULL) {
+        if(!OB_Http_init()) {
+            return false;
+        }
+    }
 
     client->curl                         = NULL;
     client->max_redirections             = OB_MAX_REDIRECTIONS;
@@ -284,10 +313,6 @@ bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     OB_ProgressData_init(&client->progress.upload);
     memset(client->error, 0, sizeof(client->error));
     
-    if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
-        return false;
-    }
-
     return (client->curl = curl_easy_init()) != NULL;
 }
 
@@ -299,7 +324,6 @@ void OB_Http_Client_free(struct OB_Http_Client *client) {
     }
 
     curl_easy_cleanup(client->curl);
-    curl_global_cleanup();
 }
 
 enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, struct OB_Http_Request *const request, struct OB_Http_Response *const response) {
@@ -320,11 +344,87 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
 
     OB_CURL_SETOPT(client->curl, CURLOPT_ERRORBUFFER, client->error);
     
-    if(request->url == NULL) {
+    if(request->url.value == NULL) {
         return OB_HTTP_ERROR_MISSING_URL;
     }
 
-    OB_CURL_SETOPT(client->curl, CURLOPT_URL, request->url);
+    char buffer[1024];
+    const char *url;
+    if(request->url.query_params.size == 0) {
+        url = request->url.value;
+    } else {
+        size_t url_length = strlen(request->url.value);
+        if(url_length >= sizeof(buffer)) {
+            return OB_HTTP_ERROR_URL_LENGTH;
+        }
+
+        strcpy(buffer, request->url.value);
+
+        //strip the fragment from the URL
+        const char *const hash_ptr = strchr(buffer, '#');
+        if(hash_ptr != NULL) {
+            url_length = (size_t)(hash_ptr - buffer);
+            buffer[url_length] = '\0';
+        }
+
+        char *write_ptr = buffer + url_length;
+
+        if(strchr(buffer, '?') == NULL) {
+            url_length++;
+            if(url_length >= sizeof(buffer)) {
+                return OB_HTTP_ERROR_URL_LENGTH;
+            }
+            *(write_ptr++) = '?';
+        } else if(buffer[url_length - 1] != '&') {
+            url_length++;
+            if(url_length >= sizeof(buffer)) {
+                return OB_HTTP_ERROR_URL_LENGTH;
+            }
+            *(write_ptr++) = '&';
+        }
+
+        struct OB_Http_QueryParam query_param = OB_Http_QueryParams_get(&request->url.query_params, 0);
+        size_t name_length  = strlen(query_param.name);
+        size_t value_length = strlen(query_param.value);
+
+        url_length += name_length + sizeof((char)'=') + value_length; 
+        if(url_length >= sizeof(buffer)) {
+            return OB_HTTP_ERROR_URL_LENGTH;
+        }
+
+        strcpy(write_ptr, query_param.name);
+        write_ptr += name_length;
+        *(write_ptr++) = '=';
+        strcpy(write_ptr, query_param.value);
+        write_ptr += value_length;
+
+        for(size_t i = 1; i < request->url.query_params.size; i++) {
+            query_param = OB_Http_QueryParams_get(&request->url.query_params, i);
+            name_length  = strlen(query_param.name);
+            value_length = strlen(query_param.value);
+
+            url_length += sizeof((char)'&') + name_length + sizeof((char)'=') + value_length;
+            if(url_length >= sizeof(buffer)) {
+                return OB_HTTP_ERROR_URL_LENGTH;
+            }
+
+            *(write_ptr++) = '&';
+            strcpy(write_ptr, query_param.name);
+            write_ptr += name_length;
+            *(write_ptr++) = '=';
+            strcpy(write_ptr, query_param.value);
+            write_ptr += value_length;  
+        }
+
+        *write_ptr = '\0';
+
+        url = buffer;
+    }
+
+    const int curl_error = curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    if(curl_error != CURLE_OK) {
+        return OB_HTTP_ERROR_CURL;
+    }
 
     switch(request->method) {
     case OB_HTTP_METHOD_GET:
@@ -481,12 +581,14 @@ void OB_Http_Client_show_download_progress(struct OB_Http_Client *const client) 
 
 void OB_Http_Request_init(struct OB_Http_Request *const request) {
     assert(request != NULL);
-    
-    request->url                 = NULL;
+    assert(dummy_curl != NULL);
+
+    request->url.value           = NULL;
     request->method              = OB_HTTP_METHOD_GET;
     request->follow_redirections = true;
     request->curl_headers        = NULL;
-        
+    
+    OB_Http_QueryParams_init(&request->url.query_params, dummy_curl);
     OB_Http_Headers_init(&request->headers);
     OB_Http_Body_init(&request->body);
 }
@@ -495,6 +597,7 @@ void OB_Http_Request_free(struct OB_Http_Request *const request) {
     assert(request != NULL);
 
     curl_slist_free_all(request->curl_headers);
+    OB_Http_QueryParams_free(&request->url.query_params);
     OB_Http_Headers_free(&request->headers);
     OB_Http_Body_free(&request->body);
     OB_Http_Request_init(request);
@@ -504,7 +607,15 @@ void OB_Http_Request_set_url(struct OB_Http_Request *const request, const char *
     assert(request != NULL);
     assert(url != NULL);
 
-    request->url = url;
+    request->url.value = url;
+}
+
+bool OB_Http_Request_set_query_param(struct OB_Http_Request *const request, const char *const name, const char *const value) {
+    assert(request != NULL);
+    assert(name != NULL);
+    assert(value != NULL);
+
+    return OB_Http_QueryParams_set(&request->url.query_params, name, value);
 }
 
 bool OB_Http_Request_basic_auth(struct OB_Http_Request *const request, const char *const username, const char *const password) {

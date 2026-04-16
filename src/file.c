@@ -1,8 +1,8 @@
-#include "file.h"
-
 #ifdef _WIN32
-#include <windows.h>
+    #include <windows.h>
 #endif
+
+#include "file.h"
 
 FILE *OB_fopen(const char *const path, const bool is_readmode) {
 #ifdef _WIN32
