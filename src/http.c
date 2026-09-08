@@ -23,18 +23,17 @@
         }\
     } while(0)
 
+#define OB_CURL_SETOPT_OR_RETURN(CURL, CURLOPTION, VALUE)\
+    do {\
+        if(curl_easy_setopt((CURL), (CURLOPTION), (VALUE)) != CURLE_OK) {\
+            return false;\
+        }\
+    } while(0)
+
 //macro used to call the curl_easy_getinfo function and return OB_HTTP_ERROR_CURL if the function call fails
 #define OB_CURL_GETINFO(CURL, CURLINFO, VALUE)\
     do {\
         if(curl_easy_getinfo((CURL), (CURLINFO), (VALUE)) != CURLE_OK) {\
-            return OB_HTTP_ERROR_CURL;\
-        }\
-    } while(0)
-
-//macro used to call the curl_easy_perform function and return OB_HTTP_ERROR_CURL if the function call fails
-#define OB_CURL_PERFORM(CURL)\
-    do {\
-        if(curl_easy_perform((CURL)) != CURLE_OK) {\
             return OB_HTTP_ERROR_CURL;\
         }\
     } while(0)
@@ -234,7 +233,17 @@ static enum OB_Http_Error OB_Http_Client_decode_body(struct OB_Http_Client *cons
 
     static const char text_html[] = "text/html";
     if(strncmp(content_type->value, text_html, sizeof(text_html) - 1) == 0) {
-        body->type = OB_HTTP_BODY_TYPE_HTML;
+        struct OB_Buffer buffer;
+        const bool success = OB_Http_Body_move_buffer(body, &buffer);
+        assert(success);
+        (void)success;
+
+        if(!OB_Http_Body_parse_html(body, &buffer)) {
+            OB_Http_Body_set_buffer(body, &buffer);
+            return OB_HTTP_ERROR_HTML_PARSING;
+        }
+
+        OB_Buffer_free(&buffer);
         return OB_HTTP_ERROR_NONE;
     }
 
@@ -305,15 +314,36 @@ bool OB_Http_Client_init(struct OB_Http_Client *const client) {
         }
     }
 
-    client->curl                         = NULL;
-    client->max_redirections             = OB_MAX_REDIRECTIONS;
-    client->get_headers                  = false;
-    client->get_body                     = true;
+    client->curl             = NULL;
+    client->max_redirections = OB_MAX_REDIRECTIONS;
+    client->get_headers      = false;
+    client->get_body         = true;
     OB_ProgressData_init(&client->progress.download);
     OB_ProgressData_init(&client->progress.upload);
     memset(client->error, 0, sizeof(client->error));
+
+    if(!(client->curl = curl_easy_init())) {
+        return false;
+    }
+
+    OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_ACCEPT_ENCODING, "");
+    OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36");
+    OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+    client->default_headers = NULL;
+    client->default_headers = curl_slist_append(client->default_headers, "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+    client->default_headers = curl_slist_append(client->default_headers, "en-US,en;q=0.9,fr-CA;q=0.8,fr;q=0.7");
+    client->default_headers = curl_slist_append(client->default_headers, "Upgrade-Insecure-Requests: 1");
+    client->default_headers = curl_slist_append(client->default_headers, "Cache-Control: no-cache");
+    client->default_headers = curl_slist_append(client->default_headers, "Pragma: no-cache");
+    client->default_headers = curl_slist_append(client->default_headers, "Priority: u=0, i");
+    client->default_headers = curl_slist_append(client->default_headers, "Sec-Fetch-Dest: document");
+    client->default_headers = curl_slist_append(client->default_headers, "Sec-Fetch-Mode: navigate");
+    client->default_headers = curl_slist_append(client->default_headers, "Sec-Fetch-Site: same-origin");
+    client->default_headers = curl_slist_append(client->default_headers, "Sec-Fetch-User: ?1");
+    client->default_headers = curl_slist_append(client->default_headers, "Upgrade-Insecure-Requests: 1");
     
-    return (client->curl = curl_easy_init()) != NULL;
+    return true;
 }
 
 void OB_Http_Client_free(struct OB_Http_Client *client) {
@@ -323,6 +353,7 @@ void OB_Http_Client_free(struct OB_Http_Client *client) {
         return;
     }
 
+    curl_slist_free_all(client->default_headers);
     curl_easy_cleanup(client->curl);
 }
 
@@ -490,9 +521,14 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
         }
     }
 
+    OB_CURL_SETOPT(client->curl, CURLOPT_HTTPHEADER, client->default_headers);
+
     client->progress.upload.start_time   = 
     client->progress.download.start_time = OB_get_usec_timestamp();
-    OB_CURL_PERFORM(client->curl);
+
+    if(curl_easy_perform(client->curl) != CURLE_OK) {
+        return OB_HTTP_ERROR_CURL;
+    }
 
     long status_code;
     OB_CURL_GETINFO(client->curl, CURLINFO_RESPONSE_CODE, &status_code);

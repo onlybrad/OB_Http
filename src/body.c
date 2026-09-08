@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <tidybuffio.h>
 
 #include "body.h"
 #include "file.h"
@@ -48,12 +49,6 @@ struct OB_Buffer *OB_Http_Body_get_buffer(struct OB_Http_Body *const body) {
     return body->type == OB_HTTP_BODY_TYPE_BUFFER ? &body->u.buffer : NULL;
 }
 
-struct OB_Buffer *OB_Http_Body_get_html(struct OB_Http_Body *const body) {
-    assert(body != NULL);
-
-    return body->type == OB_HTTP_BODY_TYPE_HTML ? &body->u.buffer : NULL;
-}
-
 void OB_Http_Body_use_json(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
@@ -87,6 +82,62 @@ struct CJSON *OB_Http_Body_get_json(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
     return body->type == OB_HTTP_BODY_TYPE_JSON ? body->u.json.root : NULL;
+}
+
+void OB_Http_Body_use_html(struct OB_Http_Body *const body) {
+    assert(body != NULL);
+
+    if(body->type != OB_HTTP_BODY_TYPE_HTML) {
+        OB_Http_Body_free(body);
+        body->type = OB_HTTP_BODY_TYPE_HTML;
+        body->u.html = tidyCreate();
+    }
+}
+
+bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *const buffer) {
+    assert(body != NULL);
+    assert(buffer != NULL);
+
+    if(buffer->size > UINT_MAX) {
+        return false;
+    }
+
+    if(body->type != OB_HTTP_BODY_TYPE_HTML) {
+        OB_Http_Body_use_html(body);
+    }
+
+    TidyBuffer tidy_buffer;
+    tidyBufAttach(&tidy_buffer, (byte*)buffer->data, (uint)buffer->size);
+    
+    TidyDoc document = body->u.html;
+    bool ret = false;
+    do {
+        if(!tidyOptSetBool(document, TidyShowWarnings, no)) {
+            break;
+        }
+
+        if(!tidyOptSetBool(document, TidyHtmlOut, yes)) {
+            break;
+        }
+
+        if(tidyParseBuffer(document, &tidy_buffer) < 0) {
+            break;
+        }
+
+        if(tidyCleanAndRepair(document) < 0) {
+            break;
+        }
+        ret = true;
+    } while(0);
+
+    tidyBufDetach(&tidy_buffer);
+    return ret;
+}
+
+TidyDoc OB_Http_Body_get_html(struct OB_Http_Body *const body) {
+    assert(body != NULL);
+
+    return body->type == OB_HTTP_BODY_TYPE_HTML ? body->u.html : NULL;
 }
 
 void OB_Http_Body_set_file(struct OB_Http_Body *const body, FILE *const file) {
@@ -136,7 +187,7 @@ void OB_Http_Body_free(struct OB_Http_Body *const body) {
         CJSON_Parser_free(&body->u.json.parser);
         break;
     case OB_HTTP_BODY_TYPE_HTML:
-        OB_Buffer_free(&body->u.buffer);
+        tidyRelease(body->u.html);
         break;
     case OB_HTTP_BODY_TYPE_XML:
         assert(0 && "XML Unimplemented");

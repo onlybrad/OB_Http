@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <cjson.h>
+#include <tidy.h>
 
 #include "buffer.h"
 
@@ -35,7 +36,7 @@ struct OB_Http_Body {
             struct CJSON_Parser parser;
             struct CJSON       *root;
         } json;
-        //reserved got HTML
+        TidyDoc html;
         //reserved for XML
     } u;
 };
@@ -46,11 +47,14 @@ void              OB_Http_Body_use_buffer (struct OB_Http_Body*);
 void              OB_Http_Body_set_buffer (struct OB_Http_Body*, struct OB_Buffer*);
 bool              OB_Http_Body_move_buffer(struct OB_Http_Body*, struct OB_Buffer*);
 struct OB_Buffer *OB_Http_Body_get_buffer (struct OB_Http_Body*);
-struct OB_Buffer *OB_Http_Body_get_html   (struct OB_Http_Body*);
 
 void               OB_Http_Body_use_json  (struct OB_Http_Body*);
 enum OB_JSON_Error OB_Http_Body_parse_json(struct OB_Http_Body*, struct OB_Buffer*);
 struct CJSON      *OB_Http_Body_get_json  (struct OB_Http_Body*);
+
+void    OB_Http_Body_use_html  (struct OB_Http_Body*);
+bool    OB_Http_Body_parse_html(struct OB_Http_Body*, struct OB_Buffer*);
+TidyDoc OB_Http_Body_get_html  (struct OB_Http_Body*);
 
 void              OB_Http_Body_set_file   (struct OB_Http_Body*, FILE *file);
 bool              OB_Http_Body_set_file_path(struct OB_Http_Body*, const char *path, bool is_readmode);

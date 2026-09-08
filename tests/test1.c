@@ -116,6 +116,34 @@ int main(void) {
 
     OB_Http_Request_free(&request);
     OB_Http_Response_free(&response);
+
+    OB_Http_Request_set_url(&request, "https://pokeapi.co");
+
+    exit_code = EXIT_FAILURE;
+    do {
+        if(OB_Http_Client_fetch(&client, &request, &response) != OB_HTTP_ERROR_NONE) {
+            fprintf(stderr, "Error: %s\n", OB_Http_Client_get_error(&client));
+            break;
+        }
+
+        const unsigned status_code = OB_Http_Response_get_status_code(&response);
+        printf("Status Code: %u\n", status_code);
+        if(status_code != 200) {
+            break;
+        }
+
+        struct OB_Http_Body *const body = OB_Http_Response_get_body(&response);
+        TidyDoc html = OB_Http_Body_get_html(body);
+        if(html == NULL) {
+            fputs("Body is not html.\n", stderr);
+            break;
+        }
+
+        printf("TidyDoc address: %p\n", (const void*)html);
+    } while(0);
+
+    OB_Http_Request_free(&request);
+    OB_Http_Response_free(&response);
     OB_Http_Client_free(&client);
     OB_Http_free();
 

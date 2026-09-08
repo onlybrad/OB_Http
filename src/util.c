@@ -20,7 +20,7 @@ void OB_Util_strtolower(char *str) {
 int64_t OB_get_usec_timestamp(void) {
 #ifdef _WIN32
     static LARGE_INTEGER frequency;
-    if (frequency.QuadPart == 0) {
+    if(frequency.QuadPart == 0) {
         QueryPerformanceFrequency(&frequency);
     }
     LARGE_INTEGER counter;
