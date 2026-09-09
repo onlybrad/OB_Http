@@ -115,6 +115,9 @@ bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *
     tidyBufAttach(&tidy_buffer, (byte*)buffer->data, (uint)buffer->size);
     
     TidyDoc document = body->u.html;
+    if(tidyParseBuffer(document, buffer) < 0) {
+        return false;
+    }
     tidyBufDetach(&tidy_buffer);
     return true;
 }
