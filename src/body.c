@@ -91,10 +91,13 @@ void OB_Http_Body_use_html(struct OB_Http_Body *const body) {
         OB_Http_Body_free(body);
         body->type = OB_HTTP_BODY_TYPE_HTML;
         body->u.html = tidyCreate();
-        tidyOptSetBool(body->u.html, TidyShowWarnings, no);
-        tidyOptSetBool(body->u.html, TidyHtmlOut, yes);
-        tidyOptSetValue(body->u.html, TidyMuteReports, "UNKNOWN_ELEMENT"); 
-        tidyOptSetValue(body->u.html, TidyCustomTags, "block");
+
+        TidyDoc document = body->u.html;
+        tidyOptSetBool(document, TidyShowWarnings, no);
+        tidyOptSetBool(document, TidyShowInfo, no);
+        tidyOptSetBool(document, TidyShowErrors, no);
+        tidyOptSetBool(document, TidyHtmlOut, yes);
+        tidyOptSetInt(document, TidyUseCustomTags, TidyCustomBlocklevel);
     }
 }
 
