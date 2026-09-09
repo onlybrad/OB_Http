@@ -116,7 +116,7 @@ bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *
     TidyDoc document = body->u.html;
     bool success = false;
     do {
-        if(tidyParseBuffer(document, buffer) < 0) {
+        if(tidyParseBuffer(document, &tidy_buffer) < 0) {
             break;
         }
         if(tidyCleanAndRepair(document) < 0) {
@@ -124,7 +124,7 @@ bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *
         }
         success = true;
     } while(0);
-    
+
     tidyBufDetach(&tidy_buffer);
     return success;
 }
