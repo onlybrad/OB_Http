@@ -95,7 +95,6 @@ void OB_Http_Body_use_html(struct OB_Http_Body *const body) {
         tidyOptSetBool(body->u.html, TidyHtmlOut, yes);
         tidyOptSetValue(body->u.html, TidyMuteReports, "UNKNOWN_ELEMENT"); 
         tidyOptSetValue(body->u.html, TidyCustomTags, "block");
-        tidyCleanAndRepair(body->u.html);
     }
 }
 
@@ -116,6 +115,9 @@ bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *
     
     TidyDoc document = body->u.html;
     if(tidyParseBuffer(document, buffer) < 0) {
+        return false;
+    }
+    if(tidyCleanAndRepair(document) < 0) {
         return false;
     }
     tidyBufDetach(&tidy_buffer);
