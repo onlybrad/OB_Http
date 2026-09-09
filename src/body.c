@@ -91,6 +91,11 @@ void OB_Http_Body_use_html(struct OB_Http_Body *const body) {
         OB_Http_Body_free(body);
         body->type = OB_HTTP_BODY_TYPE_HTML;
         body->u.html = tidyCreate();
+        tidyOptSetBool(body->u.html, TidyShowWarnings, no);
+        tidyOptSetBool(body->u.html, TidyHtmlOut, yes);
+        tidyOptSetValue(body->u.html, TidyMuteReports, "UNKNOWN_ELEMENT"); 
+        tidyOptSetValue(body->u.html, TidyCustomTags, "block");
+        tidyCleanAndRepair(body->u.html);
     }
 }
 
@@ -110,28 +115,8 @@ bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *
     tidyBufAttach(&tidy_buffer, (byte*)buffer->data, (uint)buffer->size);
     
     TidyDoc document = body->u.html;
-    bool ret = false;
-    do {
-        if(!tidyOptSetBool(document, TidyShowWarnings, no)) {
-            break;
-        }
-
-        if(!tidyOptSetBool(document, TidyHtmlOut, yes)) {
-            break;
-        }
-
-        if(tidyParseBuffer(document, &tidy_buffer) < 0) {
-            break;
-        }
-
-        if(tidyCleanAndRepair(document) < 0) {
-            break;
-        }
-        ret = true;
-    } while(0);
-
     tidyBufDetach(&tidy_buffer);
-    return ret;
+    return true;
 }
 
 TidyDoc OB_Http_Body_get_html(struct OB_Http_Body *const body) {
