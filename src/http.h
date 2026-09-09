@@ -40,7 +40,6 @@ enum OB_Http_Method {
 
 struct OB_Http_Client {
     CURL              *curl;
-    struct curl_slist *default_headers;
     unsigned           max_redirections;
     bool               get_headers;
     bool               get_body;

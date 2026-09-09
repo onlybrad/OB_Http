@@ -329,19 +329,6 @@ bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_ACCEPT_ENCODING, "");
     OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36");
     OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_FOLLOWLOCATION, 1L);
-
-    client->default_headers = NULL;
-    client->default_headers = curl_slist_append(client->default_headers, "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
-    client->default_headers = curl_slist_append(client->default_headers, "en-US,en;q=0.9,fr-CA;q=0.8,fr;q=0.7");
-    client->default_headers = curl_slist_append(client->default_headers, "Upgrade-Insecure-Requests: 1");
-    client->default_headers = curl_slist_append(client->default_headers, "Cache-Control: no-cache");
-    client->default_headers = curl_slist_append(client->default_headers, "Pragma: no-cache");
-    client->default_headers = curl_slist_append(client->default_headers, "Priority: u=0, i");
-    client->default_headers = curl_slist_append(client->default_headers, "Sec-Fetch-Dest: document");
-    client->default_headers = curl_slist_append(client->default_headers, "Sec-Fetch-Mode: navigate");
-    client->default_headers = curl_slist_append(client->default_headers, "Sec-Fetch-Site: same-origin");
-    client->default_headers = curl_slist_append(client->default_headers, "Sec-Fetch-User: ?1");
-    client->default_headers = curl_slist_append(client->default_headers, "Upgrade-Insecure-Requests: 1");
     
     return true;
 }
@@ -353,7 +340,6 @@ void OB_Http_Client_free(struct OB_Http_Client *client) {
         return;
     }
 
-    curl_slist_free_all(client->default_headers);
     curl_easy_cleanup(client->curl);
 }
 
@@ -521,8 +507,6 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
         }
     }
 
-    OB_CURL_SETOPT(client->curl, CURLOPT_HTTPHEADER, client->default_headers);
-
     client->progress.upload.start_time   = 
     client->progress.download.start_time = OB_get_usec_timestamp();
 
@@ -623,6 +607,17 @@ void OB_Http_Request_init(struct OB_Http_Request *const request) {
     request->method              = OB_HTTP_METHOD_GET;
     request->follow_redirections = true;
     request->curl_headers        = NULL;
+    request->curl_headers        = curl_slist_append(request->curl_headers, "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "en-US,en;q=0.9,fr-CA;q=0.8,fr;q=0.7");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Upgrade-Insecure-Requests: 1");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Cache-Control: no-cache");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Pragma: no-cache");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Priority: u=0, i");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Sec-Fetch-Dest: document");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Sec-Fetch-Mode: navigate");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Sec-Fetch-Site: same-origin");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Sec-Fetch-User: ?1");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Upgrade-Insecure-Requests: 1");
     
     OB_Http_QueryParams_init(&request->url.query_params, dummy_curl);
     OB_Http_Headers_init(&request->headers);
