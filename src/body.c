@@ -114,14 +114,19 @@ bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *
     tidyBufAttach(&tidy_buffer, (byte*)buffer->data, (uint)buffer->size);
     
     TidyDoc document = body->u.html;
-    if(tidyParseBuffer(document, buffer) < 0) {
-        return false;
-    }
-    if(tidyCleanAndRepair(document) < 0) {
-        return false;
-    }
+    bool success = false;
+    do {
+        if(tidyParseBuffer(document, buffer) < 0) {
+            break;
+        }
+        if(tidyCleanAndRepair(document) < 0) {
+            break;
+        }
+        success = true;
+    } while(0);
+    
     tidyBufDetach(&tidy_buffer);
-    return true;
+    return success;
 }
 
 TidyDoc OB_Http_Body_get_html(struct OB_Http_Body *const body) {
