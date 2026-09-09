@@ -501,10 +501,8 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
         OB_CURL_SETOPT(client->curl, CURLOPT_MAXREDIRS, 0L);
     }
 
-    if(request->headers.size > 0) {
-        if((error = OB_Http_Client_prepare_request_headers(client, request)) != OB_HTTP_ERROR_NONE) {
-            return error;
-        }
+    if((error = OB_Http_Client_prepare_request_headers(client, request)) != OB_HTTP_ERROR_NONE) {
+        return error;
     }
 
     client->progress.upload.start_time   = 
