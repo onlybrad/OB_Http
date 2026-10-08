@@ -3,8 +3,9 @@
 #endif
 
 #include "file.h"
+#include "util.h"
 
-FILE *OB_fopen(const char *const path, const bool is_readmode) {
+OB_EXTERN_C FILE *OB_fopen(const char *const path, const bool is_readmode) {
 #ifdef _WIN32
     wchar_t wpath[1024];
 

@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef OB_HTTP_ERROR_H
 #define OB_HTTP_ERROR_H
 
@@ -14,4 +18,8 @@ enum OB_Http_Error {
     OB_HTTP_ERROR_FFLUSH
 };
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

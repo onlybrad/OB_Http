@@ -7,7 +7,7 @@
 #define OB_Http_QueryParams_CAPACITY        8
 #define OB_Http_QueryParams_MULTIPLY_FACTOR 2
 
-void OB_Http_QueryParams_init(struct OB_Http_QueryParams *const query_params, CURL *const curl) {
+OB_EXTERN_C void OB_Http_QueryParams_init(struct OB_Http_QueryParams *const query_params, CURL *const curl) {
     assert(query_params != NULL);
     assert(curl != NULL);
 
@@ -18,7 +18,7 @@ void OB_Http_QueryParams_init(struct OB_Http_QueryParams *const query_params, CU
     OB_Buffer_init(&query_params->string_buffer, 0);
 }
 
-void OB_Http_QueryParams_free(struct OB_Http_QueryParams *const query_params) {
+OB_EXTERN_C void OB_Http_QueryParams_free(struct OB_Http_QueryParams *const query_params) {
     assert(query_params != NULL);
 
     for(size_t i = 0; i < query_params->size; i++) {
@@ -31,7 +31,7 @@ void OB_Http_QueryParams_free(struct OB_Http_QueryParams *const query_params) {
     OB_Http_QueryParams_init(query_params, query_params->curl);
 }
 
-bool OB_Http_QueryParams_reserve(struct OB_Http_QueryParams *const query_params, const size_t capacity) {
+OB_EXTERN_C bool OB_Http_QueryParams_reserve(struct OB_Http_QueryParams *const query_params, const size_t capacity) {
     assert(query_params != NULL);
     assert(capacity > 0);
 
@@ -51,7 +51,7 @@ bool OB_Http_QueryParams_reserve(struct OB_Http_QueryParams *const query_params,
     return true;
 }
 
-bool OB_Http_QueryParams_append(struct OB_Http_QueryParams *const query_params, const char *const name, const char *const value) {
+OB_EXTERN_C bool OB_Http_QueryParams_append(struct OB_Http_QueryParams *const query_params, const char *const name, const char *const value) {
     assert(query_params != NULL);
     assert(name != NULL);
     assert(value != NULL);
@@ -105,7 +105,7 @@ bool OB_Http_QueryParams_append(struct OB_Http_QueryParams *const query_params, 
     }
 }
 
-bool OB_Http_QueryParams_set(struct OB_Http_QueryParams *const query_params, const char *const name, const char *const value) {
+OB_EXTERN_C bool OB_Http_QueryParams_set(struct OB_Http_QueryParams *const query_params, const char *const name, const char *const value) {
     assert(query_params != NULL);
     assert(name != NULL);
     assert(value != NULL);
@@ -166,7 +166,7 @@ bool OB_Http_QueryParams_set(struct OB_Http_QueryParams *const query_params, con
     }
 }
 
-struct OB_Http_QueryParam OB_Http_QueryParams_get(struct OB_Http_QueryParams *const query_params, const size_t index) {
+OB_EXTERN_C struct OB_Http_QueryParam OB_Http_QueryParams_get(struct OB_Http_QueryParams *const query_params, const size_t index) {
     assert(query_params != NULL);
     assert(index < query_params->size);
 
@@ -184,7 +184,7 @@ struct OB_Http_QueryParam OB_Http_QueryParams_get(struct OB_Http_QueryParams *co
     return query_param;
 }
 
-const char *OB_Http_QueryParams_get_value(struct OB_Http_QueryParams *const query_params, const char *const name) {
+OB_EXTERN_C const char *OB_Http_QueryParams_get_value(struct OB_Http_QueryParams *const query_params, const char *const name) {
     assert(query_params != NULL);
     assert(name != NULL);
 

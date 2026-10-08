@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef OB_HTTP_FILE_H
 #define OB_HTTP_FILE_H
 
@@ -6,4 +10,8 @@
 
 FILE *OB_fopen(const char *path, bool is_readmode);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

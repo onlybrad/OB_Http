@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef OB_HTTP_BODY_H
 #define OB_HTTP_BODY_H
 
@@ -61,4 +65,8 @@ bool              OB_Http_Body_set_file_path(struct OB_Http_Body*, const char *p
 
 void OB_Http_Body_free(struct OB_Http_Body*);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

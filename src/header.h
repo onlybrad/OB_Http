@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef OB_HTTP_HEADER_H
 #define OB_HTTP_HEADER_H
 
@@ -40,4 +44,8 @@ bool OB_Http_Headers_set(struct OB_Http_Headers*, const char *name, const char *
 struct OB_Http_Header OB_Http_Headers_get(struct OB_Http_Headers*, size_t);
 const char *OB_Http_Headers_get_value(struct OB_Http_Headers*, const char*);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

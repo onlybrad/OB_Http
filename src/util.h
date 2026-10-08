@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef OB_HTTP_UTIL_H
 #define OB_HTTP_UTIL_H
 
@@ -11,6 +15,11 @@
 #define OB_MAX(A,B) ((A) > (B) ? (A) : (B))
 #define OB_MIN(A,B) ((A) < (B) ? (A) : (B))
 
+#ifdef __cplusplus
+    #define OB_EXTERN_C extern "C"
+#else
+    #define OB_EXTERN_C
+#endif
 struct OB_Size {
     const char *units;
     double      value;
@@ -20,4 +29,8 @@ void OB_Util_strtolower(char*);
 int64_t OB_get_usec_timestamp(void);
 struct OB_Size OB_format_bytes(const size_t bytes);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

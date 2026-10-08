@@ -7,7 +7,7 @@
 
 #define OB_BUFFER_MULTIPLY_FACTOR 2
 
-bool OB_Buffer_init(struct OB_Buffer *buffer, size_t capacity) {
+OB_EXTERN_C bool OB_Buffer_init(struct OB_Buffer *buffer, size_t capacity) {
     assert(buffer != NULL);
     
     buffer->data     = NULL;
@@ -26,7 +26,7 @@ bool OB_Buffer_init(struct OB_Buffer *buffer, size_t capacity) {
     return false;
 }
 
-bool OB_Buffer_reserve(struct OB_Buffer *buffer, size_t capacity) {
+OB_EXTERN_C bool OB_Buffer_reserve(struct OB_Buffer *buffer, size_t capacity) {
     assert(buffer != NULL);
     assert(capacity > 0);
 
@@ -45,7 +45,7 @@ bool OB_Buffer_reserve(struct OB_Buffer *buffer, size_t capacity) {
     return true;
 }
 
-unsigned char *OB_Buffer_append(struct OB_Buffer *buffer, const unsigned char *data, size_t size) {
+OB_EXTERN_C unsigned char *OB_Buffer_append(struct OB_Buffer *buffer, const unsigned char *data, size_t size) {
     assert(buffer != NULL);
     assert(data != NULL);
     assert(size > 0);
@@ -75,13 +75,13 @@ unsigned char *OB_Buffer_append(struct OB_Buffer *buffer, const unsigned char *d
     return ret;
 }
 
-void OB_Buffer_reset(struct OB_Buffer *buffer) {
+OB_EXTERN_C void OB_Buffer_reset(struct OB_Buffer *buffer) {
     assert(buffer != NULL);
 
     buffer->size = 0;
 }
 
-void OB_Buffer_free(struct OB_Buffer *buffer) {
+OB_EXTERN_C void OB_Buffer_free(struct OB_Buffer *buffer) {
     assert(buffer != NULL);
 
     OB_FREE(buffer->data);

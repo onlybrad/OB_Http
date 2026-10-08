@@ -8,7 +8,7 @@
 #define OB_HTTP_HEADERS_CAPACITY        8
 #define OB_HTTP_HEADERS_MULTIPLY_FACTOR 2
 
-void OB_Http_Headers_init(struct OB_Http_Headers *const headers) {
+OB_EXTERN_C void OB_Http_Headers_init(struct OB_Http_Headers *const headers) {
     assert(headers != NULL);
 
     headers->capacity = 0;
@@ -17,14 +17,14 @@ void OB_Http_Headers_init(struct OB_Http_Headers *const headers) {
     OB_Buffer_init(&headers->string_buffer, 0);
 }
 
-void OB_Http_Headers_free(struct OB_Http_Headers *const headers) {
+OB_EXTERN_C void OB_Http_Headers_free(struct OB_Http_Headers *const headers) {
     assert(headers != NULL);
 
     OB_Buffer_free(&headers->string_buffer);
     OB_Http_Headers_init(headers);
 }
 
-bool OB_Http_Headers_reserve(struct OB_Http_Headers *const headers, const size_t capacity) {
+OB_EXTERN_C bool OB_Http_Headers_reserve(struct OB_Http_Headers *const headers, const size_t capacity) {
     assert(headers != NULL);
     assert(capacity > 0);
 
@@ -44,7 +44,7 @@ bool OB_Http_Headers_reserve(struct OB_Http_Headers *const headers, const size_t
     return true;
 }
 
-bool OB_Http_Headers_append(struct OB_Http_Headers *const headers, const char *const name, const char *const value) {
+OB_EXTERN_C bool OB_Http_Headers_append(struct OB_Http_Headers *const headers, const char *const name, const char *const value) {
     assert(headers != NULL);
     assert(name != NULL);
     assert(value != NULL);
@@ -81,7 +81,7 @@ bool OB_Http_Headers_append(struct OB_Http_Headers *const headers, const char *c
     return true;
 }
 
-bool OB_Http_Headers_set(struct OB_Http_Headers *const headers, const char *const name, const char *const value) {
+OB_EXTERN_C bool OB_Http_Headers_set(struct OB_Http_Headers *const headers, const char *const name, const char *const value) {
     assert(headers != NULL);
     assert(name != NULL);
     assert(value != NULL);
@@ -118,7 +118,7 @@ bool OB_Http_Headers_set(struct OB_Http_Headers *const headers, const char *cons
     return true;
 }
 
-struct OB_Http_Header OB_Http_Headers_get(struct OB_Http_Headers *const headers, const size_t index) {
+OB_EXTERN_C struct OB_Http_Header OB_Http_Headers_get(struct OB_Http_Headers *const headers, const size_t index) {
     assert(headers != NULL);
     assert(index < headers->size);
 
@@ -133,7 +133,7 @@ struct OB_Http_Header OB_Http_Headers_get(struct OB_Http_Headers *const headers,
     return header;
 }
 
-const char *OB_Http_Headers_get_value(struct OB_Http_Headers *const headers, char const *const name) {
+OB_EXTERN_C const char *OB_Http_Headers_get_value(struct OB_Http_Headers *const headers, char const *const name) {
     assert(headers != NULL);
     assert(name != NULL);
 

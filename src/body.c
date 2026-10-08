@@ -3,15 +3,16 @@
 
 #include "body.h"
 #include "file.h"
+#include "util.h"
 
-void OB_Http_Body_init(struct OB_Http_Body *const body) {
+OB_EXTERN_C void OB_Http_Body_init(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
     body->u.none = NULL;
     body->type   = OB_HTTP_BODY_TYPE_NONE;
 }
 
-void OB_Http_Body_use_buffer(struct OB_Http_Body *const body) {
+OB_EXTERN_C void OB_Http_Body_use_buffer(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
     if(body->type != OB_HTTP_BODY_TYPE_BUFFER) {
@@ -21,7 +22,7 @@ void OB_Http_Body_use_buffer(struct OB_Http_Body *const body) {
     }
 }
 
-void OB_Http_Body_set_buffer(struct OB_Http_Body *const body, struct OB_Buffer *const buffer) {
+OB_EXTERN_C void OB_Http_Body_set_buffer(struct OB_Http_Body *const body, struct OB_Buffer *const buffer) {
     assert(body != NULL);
     assert(buffer != NULL);
 
@@ -30,7 +31,7 @@ void OB_Http_Body_set_buffer(struct OB_Http_Body *const body, struct OB_Buffer *
     body->u.buffer = *buffer;
 }
 
-bool OB_Http_Body_move_buffer(struct OB_Http_Body *const body, struct OB_Buffer *const buffer) {
+OB_EXTERN_C bool OB_Http_Body_move_buffer(struct OB_Http_Body *const body, struct OB_Buffer *const buffer) {
     assert(body != NULL);
     assert(buffer != NULL);
 
@@ -43,13 +44,13 @@ bool OB_Http_Body_move_buffer(struct OB_Http_Body *const body, struct OB_Buffer 
     return true;
 }
 
-struct OB_Buffer *OB_Http_Body_get_buffer(struct OB_Http_Body *const body) {
+OB_EXTERN_C struct OB_Buffer *OB_Http_Body_get_buffer(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
     return body->type == OB_HTTP_BODY_TYPE_BUFFER ? &body->u.buffer : NULL;
 }
 
-void OB_Http_Body_use_json(struct OB_Http_Body *const body) {
+OB_EXTERN_C void OB_Http_Body_use_json(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
     if(body->type != OB_HTTP_BODY_TYPE_JSON) {
@@ -59,7 +60,7 @@ void OB_Http_Body_use_json(struct OB_Http_Body *const body) {
     }
 }
 
-enum OB_JSON_Error OB_Http_Body_parse_json(struct OB_Http_Body *const body, struct OB_Buffer *const buffer) {
+OB_EXTERN_C enum OB_JSON_Error OB_Http_Body_parse_json(struct OB_Http_Body *const body, struct OB_Buffer *const buffer) {
     assert(body != NULL);
     assert(buffer != NULL);
 
@@ -78,13 +79,13 @@ enum OB_JSON_Error OB_Http_Body_parse_json(struct OB_Http_Body *const body, stru
         : OB_JSON_ERROR_NONE;    
 }
 
-struct CJSON *OB_Http_Body_get_json(struct OB_Http_Body *const body) {
+OB_EXTERN_C struct CJSON *OB_Http_Body_get_json(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
     return body->type == OB_HTTP_BODY_TYPE_JSON ? body->u.json.root : NULL;
 }
 
-void OB_Http_Body_use_html(struct OB_Http_Body *const body) {
+OB_EXTERN_C void OB_Http_Body_use_html(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
     if(body->type != OB_HTTP_BODY_TYPE_HTML) {
@@ -101,7 +102,7 @@ void OB_Http_Body_use_html(struct OB_Http_Body *const body) {
     }
 }
 
-bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *const buffer) {
+OB_EXTERN_C bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *const buffer) {
     assert(body != NULL);
     assert(buffer != NULL);
 
@@ -132,13 +133,13 @@ bool OB_Http_Body_parse_html(struct OB_Http_Body *const body, struct OB_Buffer *
     return success;
 }
 
-TidyDoc OB_Http_Body_get_html(struct OB_Http_Body *const body) {
+OB_EXTERN_C TidyDoc OB_Http_Body_get_html(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
     return body->type == OB_HTTP_BODY_TYPE_HTML ? body->u.html : NULL;
 }
 
-void OB_Http_Body_set_file(struct OB_Http_Body *const body, FILE *const file) {
+OB_EXTERN_C void OB_Http_Body_set_file(struct OB_Http_Body *const body, FILE *const file) {
     assert(body != NULL);
     assert(file != NULL);
 
@@ -147,7 +148,7 @@ void OB_Http_Body_set_file(struct OB_Http_Body *const body, FILE *const file) {
     body->u.file = file;
 }
 
-bool OB_Http_Body_set_file_path(struct OB_Http_Body *const body, const char *const path, const bool is_readmode) {
+OB_EXTERN_C bool OB_Http_Body_set_file_path(struct OB_Http_Body *const body, const char *const path, const bool is_readmode) {
     assert(body != NULL);
     assert(path != NULL);
 
@@ -161,7 +162,7 @@ bool OB_Http_Body_set_file_path(struct OB_Http_Body *const body, const char *con
     return true;
 }   
 
-void OB_Http_Body_free(struct OB_Http_Body *const body) {
+OB_EXTERN_C void OB_Http_Body_free(struct OB_Http_Body *const body) {
     assert(body != NULL);
 
     switch(body->type) {

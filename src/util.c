@@ -8,7 +8,7 @@
     #include <sys/time.h>
 #endif
 
-void OB_Util_strtolower(char *str) {
+OB_EXTERN_C void OB_Util_strtolower(char *str) {
     assert(str != NULL);
 
     while(*str != '\0') {
@@ -17,7 +17,7 @@ void OB_Util_strtolower(char *str) {
     }
 }
 
-int64_t OB_get_usec_timestamp(void) {
+OB_EXTERN_C int64_t OB_get_usec_timestamp(void) {
 #ifdef _WIN32
     static LARGE_INTEGER frequency;
     if(frequency.QuadPart == 0) {
@@ -38,7 +38,7 @@ int64_t OB_get_usec_timestamp(void) {
 #endif
 }
 
-struct OB_Size OB_format_bytes(const size_t bytes) {
+OB_EXTERN_C struct OB_Size OB_format_bytes(const size_t bytes) {
     static const char *units[] = {
         "B", "KB", "MB", "GB", "TB"
     };

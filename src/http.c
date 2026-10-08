@@ -285,7 +285,7 @@ static void OB_ProgressData_init(struct OB_ProgressData *const progress_data) {
     progress_data->current_time = 0;
 }
 
-bool OB_Http_init(void) {
+OB_EXTERN_C bool OB_Http_init(void) {
     if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
         return false;
     }
@@ -297,7 +297,7 @@ bool OB_Http_init(void) {
     return true;
 }
 
-void OB_Http_free(void) {
+OB_EXTERN_C void OB_Http_free(void) {
     curl_global_cleanup();
     
     if(dummy_curl != NULL) {
@@ -305,7 +305,7 @@ void OB_Http_free(void) {
     }
 }
 
-bool OB_Http_Client_init(struct OB_Http_Client *const client) {
+OB_EXTERN_C bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     assert(client != NULL);
 
     if(dummy_curl == NULL) {
@@ -333,7 +333,7 @@ bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     return true;
 }
 
-void OB_Http_Client_free(struct OB_Http_Client *client) {
+OB_EXTERN_C void OB_Http_Client_free(struct OB_Http_Client *client) {
     assert(client != NULL);
 
     if(client->curl == NULL) {
@@ -343,7 +343,7 @@ void OB_Http_Client_free(struct OB_Http_Client *client) {
     curl_easy_cleanup(client->curl);
 }
 
-enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, struct OB_Http_Request *const request, struct OB_Http_Response *const response) {
+OB_EXTERN_C enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, struct OB_Http_Request *const request, struct OB_Http_Response *const response) {
     assert(client != NULL);
     assert(request != NULL);
     assert(response != NULL);
@@ -534,7 +534,7 @@ enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const client, str
     return OB_HTTP_ERROR_NONE;
 }
 
-bool OB_Http_Client_get_headers(struct OB_Http_Client *const client, struct OB_Http_Response *const response) {
+OB_EXTERN_C bool OB_Http_Client_get_headers(struct OB_Http_Client *const client, struct OB_Http_Response *const response) {
     assert(client != NULL);
     assert(response != NULL);
 
@@ -565,39 +565,39 @@ bool OB_Http_Client_get_headers(struct OB_Http_Client *const client, struct OB_H
     return true;
 }
 
-const char *OB_Http_Client_get_error(const struct OB_Http_Client *const client) {
+OB_EXTERN_C const char *OB_Http_Client_get_error(const struct OB_Http_Client *const client) {
     assert(client != NULL);
 
     return client->error;
 }
 
-void OB_Http_Client_on_upload(struct OB_Http_Client *const client, OB_ProgressCallback callback, void *const user_data) {
+OB_EXTERN_C void OB_Http_Client_on_upload(struct OB_Http_Client *const client, OB_ProgressCallback callback, void *const user_data) {
     assert(client != NULL);
 
     client->progress.upload.callback  = callback;
     client->progress.upload.user_data = user_data;
 }
 
-void OB_Http_Client_on_download(struct OB_Http_Client *const client, OB_ProgressCallback callback, void *const user_data) {
+OB_EXTERN_C void OB_Http_Client_on_download(struct OB_Http_Client *const client, OB_ProgressCallback callback, void *const user_data) {
     assert(client != NULL);
 
     client->progress.download.callback  = callback;
     client->progress.download.user_data = user_data;
 }
 
-void OB_Http_Client_show_upload_progress(struct OB_Http_Client *const client) {
+OB_EXTERN_C void OB_Http_Client_show_upload_progress(struct OB_Http_Client *const client) {
     assert(client != NULL);
 
     OB_Http_Client_on_upload(client, OB_Http_default_upload_progress_callback, NULL);
 }
 
-void OB_Http_Client_show_download_progress(struct OB_Http_Client *const client) {
+OB_EXTERN_C void OB_Http_Client_show_download_progress(struct OB_Http_Client *const client) {
     assert(client != NULL);
 
     OB_Http_Client_on_download(client, OB_Http_default_download_progress_callback, NULL);
 }
 
-void OB_Http_Request_init(struct OB_Http_Request *const request) {
+OB_EXTERN_C void OB_Http_Request_init(struct OB_Http_Request *const request) {
     assert(request != NULL);
     assert(dummy_curl != NULL);
 
@@ -622,7 +622,7 @@ void OB_Http_Request_init(struct OB_Http_Request *const request) {
     OB_Http_Body_init(&request->body);
 }
 
-void OB_Http_Request_free(struct OB_Http_Request *const request) {
+OB_EXTERN_C void OB_Http_Request_free(struct OB_Http_Request *const request) {
     assert(request != NULL);
 
     curl_slist_free_all(request->curl_headers);
@@ -632,14 +632,14 @@ void OB_Http_Request_free(struct OB_Http_Request *const request) {
     OB_Http_Request_init(request);
 }
 
-void OB_Http_Request_set_url(struct OB_Http_Request *const request, const char *const url) {
+OB_EXTERN_C void OB_Http_Request_set_url(struct OB_Http_Request *const request, const char *const url) {
     assert(request != NULL);
     assert(url != NULL);
 
     request->url.value = url;
 }
 
-bool OB_Http_Request_set_query_param(struct OB_Http_Request *const request, const char *const name, const char *const value) {
+OB_EXTERN_C bool OB_Http_Request_set_query_param(struct OB_Http_Request *const request, const char *const name, const char *const value) {
     assert(request != NULL);
     assert(name != NULL);
     assert(value != NULL);
@@ -647,7 +647,7 @@ bool OB_Http_Request_set_query_param(struct OB_Http_Request *const request, cons
     return OB_Http_QueryParams_set(&request->url.query_params, name, value);
 }
 
-bool OB_Http_Request_basic_auth(struct OB_Http_Request *const request, const char *const username, const char *const password) {
+OB_EXTERN_C bool OB_Http_Request_basic_auth(struct OB_Http_Request *const request, const char *const username, const char *const password) {
     assert(request != NULL);
     assert(username != NULL);
     assert(password != NULL);
@@ -671,27 +671,27 @@ bool OB_Http_Request_basic_auth(struct OB_Http_Request *const request, const cha
     return success;
 }
 
-void OB_Http_Request_set_file(struct OB_Http_Request *const request, FILE *const file) {
+OB_EXTERN_C void OB_Http_Request_set_file(struct OB_Http_Request *const request, FILE *const file) {
     assert(request != NULL);
     assert(file != NULL);
 
     OB_Http_Body_set_file(&request->body, file);
 }
 
-bool OB_Http_Request_set_file_path(struct OB_Http_Request *const request, const char *path) {
+OB_EXTERN_C bool OB_Http_Request_set_file_path(struct OB_Http_Request *const request, const char *path) {
     assert(request != NULL);
     assert(path != NULL);
 
     return OB_Http_Body_set_file_path(&request->body, path, true);
 }
 
-struct OB_Http_Body *OB_Http_Request_get_body(struct OB_Http_Request *const request) { 
+OB_EXTERN_C struct OB_Http_Body *OB_Http_Request_get_body(struct OB_Http_Request *const request) { 
     assert(request != NULL);
 
     return &request->body; 
 }
 
-void OB_Http_Response_init(struct OB_Http_Response *const response) {
+OB_EXTERN_C void OB_Http_Response_init(struct OB_Http_Response *const response) {
     assert(response != NULL);
 
     OB_Http_Body_init(&response->body);
@@ -699,7 +699,7 @@ void OB_Http_Response_init(struct OB_Http_Response *const response) {
     response->status_code = 0u;
 }
 
-void OB_Http_Response_free(struct OB_Http_Response *const response) {
+OB_EXTERN_C void OB_Http_Response_free(struct OB_Http_Response *const response) {
     assert(response != NULL);
 
     OB_Http_Body_free(&response->body);
@@ -707,27 +707,27 @@ void OB_Http_Response_free(struct OB_Http_Response *const response) {
     OB_Http_Response_init(response);
 }
 
-void OB_Http_Response_set_file(struct OB_Http_Response *const response, FILE *const file) {
+OB_EXTERN_C void OB_Http_Response_set_file(struct OB_Http_Response *const response, FILE *const file) {
     assert(response != NULL);
     assert(file != NULL);
 
     OB_Http_Body_set_file(&response->body, file);
 }
 
-bool OB_Http_Response_set_file_path(struct OB_Http_Response *const response, const char *path) {
+OB_EXTERN_C bool OB_Http_Response_set_file_path(struct OB_Http_Response *const response, const char *path) {
     assert(response != NULL);
     assert(path != NULL);
 
     return OB_Http_Body_set_file_path(&response->body, path, false);
 }
 
-unsigned OB_Http_Response_get_status_code(const struct OB_Http_Response *const response) {
+OB_EXTERN_C unsigned OB_Http_Response_get_status_code(const struct OB_Http_Response *const response) {
     assert(response != NULL);
 
     return response->status_code;
 }
 
-struct OB_Http_Body *OB_Http_Response_get_body(struct OB_Http_Response *const response) {
+OB_EXTERN_C struct OB_Http_Body *OB_Http_Response_get_body(struct OB_Http_Response *const response) {
     assert(response != NULL);
     
     return &response->body;

@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef OB_HTTP_QUERY_PARAMS_H
 #define OB_HTTP_QUERY_PARAMS_H
 
@@ -36,4 +40,8 @@ bool OB_Http_QueryParams_set(struct OB_Http_QueryParams*, const char *name, cons
 struct OB_Http_QueryParam OB_Http_QueryParams_get(struct OB_Http_QueryParams*, size_t);
 const char *OB_Http_QueryParams_get_value(struct OB_Http_QueryParams*, const char*);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

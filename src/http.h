@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef OB_HTTP_H
 #define OB_HTTP_H
 
@@ -95,4 +99,8 @@ bool                 OB_Http_Response_set_file_path  (struct OB_Http_Response*, 
 unsigned             OB_Http_Response_get_status_code(const struct OB_Http_Response*);
 struct OB_Http_Body *OB_Http_Response_get_body       (struct OB_Http_Response*);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

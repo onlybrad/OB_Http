@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef OB_HTTP_BUFFER_H
 #define OB_HTTP_BUFFER_H
 
@@ -15,5 +19,8 @@ unsigned char *OB_Buffer_append (struct OB_Buffer*, const unsigned char*, size_t
 void           OB_Buffer_reset  (struct OB_Buffer*);
 void           OB_Buffer_free   (struct OB_Buffer*);
 
+#endif
 
+#ifdef __cplusplus
+}
 #endif
