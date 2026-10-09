@@ -152,7 +152,7 @@ OB_EXTERN_C bool OB_Http_Body_set_file_path(struct OB_Http_Body *const body, con
     assert(body != NULL);
     assert(path != NULL);
 
-    FILE *const file = OB_fopen(path, is_readmode);
+    FILE *const file = OB_fopen(path, is_readmode ? "rb" : "wb");
     if(file == NULL) {
         return false;
     }

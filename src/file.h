@@ -8,7 +8,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdbool.h>
 
-FILE *OB_fopen(const char *path, bool is_readmode);
+FILE *OB_fopen(const char *path, const char *mode);
 
 #endif
 

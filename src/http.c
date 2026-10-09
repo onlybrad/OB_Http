@@ -327,7 +327,8 @@ OB_EXTERN_C bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     }
 
     OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_ACCEPT_ENCODING, "");
-    OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36");
+    OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36");
+    OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_ACCEPT_ENCODING, "gzip, deflate, br, zstd");
     OB_CURL_SETOPT_OR_RETURN(client->curl, CURLOPT_FOLLOWLOCATION, 1L);
     
     return true;
@@ -605,8 +606,8 @@ OB_EXTERN_C void OB_Http_Request_init(struct OB_Http_Request *const request) {
     request->method              = OB_HTTP_METHOD_GET;
     request->follow_redirections = true;
     request->curl_headers        = NULL;
-    request->curl_headers        = curl_slist_append(request->curl_headers, "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
-    request->curl_headers        = curl_slist_append(request->curl_headers, "en-US,en;q=0.9,fr-CA;q=0.8,fr;q=0.7");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+    request->curl_headers        = curl_slist_append(request->curl_headers, "Accept-Language: en-US,en;q=0.9,fr-CA;q=0.8,fr;q=0.7");
     request->curl_headers        = curl_slist_append(request->curl_headers, "Upgrade-Insecure-Requests: 1");
     request->curl_headers        = curl_slist_append(request->curl_headers, "Cache-Control: no-cache");
     request->curl_headers        = curl_slist_append(request->curl_headers, "Pragma: no-cache");
@@ -616,7 +617,7 @@ OB_EXTERN_C void OB_Http_Request_init(struct OB_Http_Request *const request) {
     request->curl_headers        = curl_slist_append(request->curl_headers, "Sec-Fetch-Site: same-origin");
     request->curl_headers        = curl_slist_append(request->curl_headers, "Sec-Fetch-User: ?1");
     request->curl_headers        = curl_slist_append(request->curl_headers, "Upgrade-Insecure-Requests: 1");
-    
+        
     OB_Http_QueryParams_init(&request->url.query_params, dummy_curl);
     OB_Http_Headers_init(&request->headers);
     OB_Http_Body_init(&request->body);

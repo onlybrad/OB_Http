@@ -1,24 +1,42 @@
-#ifdef _WIN32
-    #include <windows.h>
-#endif
+#include <assert.h>
 
 #include "file.h"
 #include "util.h"
 
-OB_EXTERN_C FILE *OB_fopen(const char *const path, const bool is_readmode) {
 #ifdef _WIN32
-    wchar_t wpath[1024];
+#include <windows.h>
 
-    const int wide_length = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
-    if(wide_length == 0 || wide_length >= (int)(sizeof(wpath) / sizeof(wpath[0]))) {
+static bool utf8_to_utf16(wchar_t *const dst, const char *const src, const int dst_capacity) {
+    assert(dst != NULL);
+    assert(src != NULL);
+
+    const int utf16_length = MultiByteToWideChar(CP_UTF8, 0, src, -1, NULL, 0);
+    if(utf16_length == 0 || utf16_length > dst_capacity) {
+        return false;
+    }
+
+    return MultiByteToWideChar(CP_UTF8, 0, src, -1, dst, utf16_length) == utf16_length;
+}
+#endif
+
+OB_EXTERN_C FILE *OB_fopen(const char *const path, const char *const mode) {
+    assert(path != NULL);
+    assert(mode != NULL);
+#ifdef _WIN32
+    wchar_t wpath[OB_SIZE_MAX + 1];
+    if(!utf8_to_utf16(wpath, path, (int)OB_ARRAY_LENGTH(wpath))) {
+        errno = ENAMETOOLONG;
         return NULL;
     }
 
-    MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, wide_length);
-    wpath[wide_length] = L'\0';
+    wchar_t wmode[8];
+    if(!utf8_to_utf16(wmode, mode, (int)OB_ARRAY_LENGTH(wmode))) {
+        errno = EINVAL;
+        return NULL;
+    }
 
-    return _wfopen(wpath, is_readmode ? L"rb" : L"wb");
+    return _wfopen(wpath, wmode);
 #else
-    return fopen(path, is_readmode ? "rb" : "wb");
+    return fopen(path, mode);
 #endif
 }

@@ -15,6 +15,10 @@ extern "C" {
 #define OB_MAX(A,B) ((A) > (B) ? (A) : (B))
 #define OB_MIN(A,B) ((A) < (B) ? (A) : (B))
 
+#define OB_ARRAY_LENGTH(ARRAY) (sizeof(ARRAY) / sizeof(ARRAY[0]))
+
+#define OB_SIZE_MAX 2048
+
 #ifdef __cplusplus
     #define OB_EXTERN_C extern "C"
 #else
