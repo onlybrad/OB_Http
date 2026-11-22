@@ -7,11 +7,9 @@ extern "C" {
 
 #include <curl/curl.h>
 #include <stdbool.h>
-#include <time.h>
 #include <stdint.h>
 
 #include "error.h"
-#include "buffer.h"
 #include "body.h"
 #include "header.h"
 #include "queryparams.h"

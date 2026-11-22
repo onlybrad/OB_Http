@@ -53,6 +53,7 @@ static bool OB_Http_default_progress_callback(const size_t accumulated, const si
 
     const double speed = (double)accumulated / (double)time_elapsed;
     const struct OB_Size size = OB_format_bytes(accumulated);
+    OB_CLEAR_FILE(stdout);
     if(total == 0) {
         printf("???%% %s (%.2lf%s) %.2lf MB/s.\n", message, size.value, size.units, speed);
     } else {

@@ -12,6 +12,8 @@ extern "C" {
 #define OB_FREE    free
 #define OB_REALLOC realloc
 
+#define OB_CLEAR_FILE(STREAM) do {fprintf(STREAM, "\\033\[2J"); fflush(STREAM);} while(0)
+
 #define OB_MAX(A,B) ((A) > (B) ? (A) : (B))
 #define OB_MIN(A,B) ((A) < (B) ? (A) : (B))
 
