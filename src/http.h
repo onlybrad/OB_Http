@@ -45,6 +45,7 @@ struct OB_Http_Client {
     unsigned           max_redirections;
     bool               get_headers;
     bool               get_body;
+    bool               decode;
     struct OB_Progress progress;
     char               error[CURL_ERROR_SIZE];
 };

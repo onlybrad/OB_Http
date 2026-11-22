@@ -319,6 +319,7 @@ OB_EXTERN_C bool OB_Http_Client_init(struct OB_Http_Client *const client) {
     client->max_redirections = OB_MAX_REDIRECTIONS;
     client->get_headers      = false;
     client->get_body         = true;
+    client->decode           = true;
     OB_ProgressData_init(&client->progress.download);
     OB_ProgressData_init(&client->progress.upload);
     memset(client->error, 0, sizeof(client->error));
@@ -524,7 +525,10 @@ OB_EXTERN_C enum OB_Http_Error OB_Http_Client_fetch(struct OB_Http_Client *const
 
     if(client->get_body) {
         if(response->body.type != OB_HTTP_BODY_TYPE_FILE) {
-            return OB_Http_Client_decode_body(client, response);
+            if(client->decode) {
+                return OB_Http_Client_decode_body(client, response);
+            }
+            return OB_HTTP_ERROR_NONE;
         }
         if(response->body.u.file != NULL) {
             if(fflush(response->body.u.file) == EOF) {
