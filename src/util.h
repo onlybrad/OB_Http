@@ -12,7 +12,7 @@ extern "C" {
 #define OB_FREE    free
 #define OB_REALLOC realloc
 
-#define OB_CLEAR_FILE(STREAM) fputs("\033[2K\r", STREAM)
+#define OB_CLEAR_FILE(STREAM) fputs("\033[1A\033[2K\r", STREAM)
 
 #define OB_MAX(A,B) ((A) > (B) ? (A) : (B))
 #define OB_MIN(A,B) ((A) < (B) ? (A) : (B))
