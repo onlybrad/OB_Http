@@ -53,12 +53,17 @@ static bool OB_Http_default_progress_callback(const size_t accumulated, const si
 
     const double speed = (double)accumulated / (double)time_elapsed;
     const struct OB_Size size = OB_format_bytes(accumulated);
-    OB_CLEAR_FILE(stdout);
+    OB_CLEAR_LINE(stdout);
+    fflush(stdout);
     if(total == 0) {
-        printf("???%% %s (%.2lf%s) %.2lf MB/s.\n", message, size.value, size.units, speed);
+        printf("???%% %s (%.2lf%s) %.2lf MB/s.", message, size.value, size.units, speed);
     } else {
         const double percentage = (double)accumulated * 100.0 / (double)total;
-        printf("%.2f%% %s (%.2lf%s) %.2lf MB/s.\n", percentage, message, size.value, size.units, speed);
+        printf("%.2f%% %s (%.2lf%s) %.2lf MB/s.", percentage, message, size.value, size.units, speed);
+    }
+
+    if(accumulated == total) {
+        putchar('\n');
     }
 
     return true;
